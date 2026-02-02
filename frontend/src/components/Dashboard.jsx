@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Bubble from './Bubble';
-
+import { TriangleAlert } from 'lucide-react';
 
 const getClientId = () => {
   let id = localStorage.getItem("gonogo_client_id");
@@ -23,41 +23,30 @@ const Dashboard = () => {
     setLoading(true);
     setError(null);
     
-    const payload = { 
-      icao: icao, 
-      plane_size: plane 
-    };
+    const payload = { icao: icao, plane_size: plane };
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Client-ID": getClientId(), // <--- NEW: Sends your "Digital Badge"
+          "X-Client-ID": getClientId(),
         },
         body: JSON.stringify(payload),
       });
 
-      // --- ERROR HANDLING LOGIC ---
       if (!response.ok) {
-        // 1. Attempt to parse the custom JSON error from the backend
         let errorDetail = "An unexpected error occurred.";
         try {
           const errorData = await response.json();
-          if (errorData.detail) {
-            errorDetail = errorData.detail;
-          }
-        } catch (parseError) {
-          // If the backend didn't send JSON (e.g., server crash), keep generic message
+          if (errorData.detail) errorDetail = errorData.detail;
+        } catch (e) {
           errorDetail = `Server error: ${response.status} ${response.statusText}`;
         }
-
-        // 2. Throw an error object that contains the specific message
         const customError = new Error(errorDetail);
         customError.apiMessage = errorDetail; 
         throw customError;
       }
-      // --------------------------------
 
       const result = await response.json();
       
@@ -68,16 +57,9 @@ const Dashboard = () => {
       }
       
     } catch (err) {
-      console.error("Full Error Object:", err);
-      
-      // 3. Check for our custom property 'apiMessage'
-      if (err.apiMessage) {
-        setError(err.apiMessage);
-      } else if (err.message && err.message !== "Failed to fetch") {
-        setError(err.message);
-      } else {
-        setError("Failed to connect to API. Ensure Docker is running.");
-      }
+      if (err.apiMessage) setError(err.apiMessage);
+      else if (err.message && err.message !== "Failed to fetch") setError(err.message);
+      else setError("Failed to connect to API. Ensure Docker is running.");
     } finally {
       setLoading(false);
     }
@@ -89,16 +71,35 @@ const Dashboard = () => {
     setError(null);
   };
 
+  // SAFE ACCESS HELPER
+  // Prevents "White Screen" crashes if 'bubbles' or 'timeline' are missing
+  const analysis = data?.analysis || {};
+  const timeline = analysis.timeline || {};
+  const bubbles = analysis.bubbles || {};
+  const raw = data?.raw_data || {};
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+    <div className="max-w-4xl mx-auto space-y-8 pb-12 pt-4">
       
+      {/* SITE DESCRIPTION */}
+      <div className="text-center space-y-4 mb-8">
+        <h2 className="text-xl md:text-2xl font-light text-blue-200 tracking-tight">
+          A Preflight App for Pilots to Decode Weather, Airspace and NOTAMs
+        </h2>
+        <div className="h-px bg-gradient-to-r from-transparent via-neutral-800 to-transparent w-full my-6"></div>
+        <p className="text-neutral-400 text-sm max-w-2xl mx-auto leading-relaxed">
+          Enter an Airport ICAO code (e.g. <strong className="text-white">KBWI</strong>, <strong className="text-white">2W5</strong>) 
+          and select your aircraft profile below.
+        </p>
+      </div>
+
       {/* CONTROLS */}
       <div className="flex flex-col md:flex-row gap-4 md:h-14">
         <input 
           value={icao} 
           onChange={(e) => setIcao(e.target.value.toUpperCase())}
-          placeholder="SEARCH (ex. KBWI, 2W5)" 
-          disabled={data || loading} // Lock when data exists
+          placeholder="SEARCH..." 
+          disabled={data || loading} 
           className="flex-1 bg-neutral-800 border border-neutral-700 text-white text-center font-bold rounded-lg uppercase focus:outline-none focus:border-blue-500 transition-colors p-3 md:p-0 h-12 md:h-full disabled:opacity-50 disabled:cursor-not-allowed"
         />
         
@@ -106,7 +107,7 @@ const Dashboard = () => {
             <select 
                 value={plane} 
                 onChange={(e) => setPlane(e.target.value)}
-                disabled={data || loading} // Lock when data exists
+                disabled={data || loading}
                 className="w-full h-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-4 focus:outline-none focus:border-blue-500 cursor-pointer appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <option value="small">Small (Max X-Wind: 15kts)</option>
@@ -117,32 +118,15 @@ const Dashboard = () => {
         </div>
 
         <div className={`flex-1 grid gap-2 h-12 md:h-full ${data ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            
-            {/* ANALYZE BUTTON */}
             <button 
               onClick={handleAnalyze} 
               disabled={data || loading} 
               className="w-full h-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:bg-neutral-700 disabled:text-neutral-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>ANALYZING...</span>
-                </>
-              ) : (
-                "ANALYZE"
-              )}
+              {loading ? "ANALYZING..." : "ANALYZE"}
             </button>
-            
-            {/* RESET BUTTON */}
             {data && (
-              <button 
-                onClick={handleClear}
-                className="w-full h-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-lg flex items-center justify-center"
-              >
+              <button onClick={handleClear} className="w-full h-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-lg flex items-center justify-center">
                 RESET
               </button>
             )}
@@ -152,28 +136,26 @@ const Dashboard = () => {
       {error && <div className="p-4 bg-red-900/50 text-red-200 border border-red-700 rounded animate-fade-in">{error}</div>}
 
       {/* RESULTS */}
-      {data && data.analysis && (
+      {data && analysis && (
         <div className="space-y-8 animate-fade-in">
           
-          {/* HEADER SECTION */}
+          {/* HEADER */}
           <div className="text-center pt-2 space-y-2">
-            
-            {/* DISCLAIMER - Updated Text & Spacing */}
             <div className="inline-block bg-neutral-800/50 border border-neutral-800 rounded px-3 py-1 mb-4 mt-2">
                 <p className="text-[10px] text-neutral-500 uppercase tracking-wide">
                     Disclaimer: AI normalizes data and can make errors. Verify with official sources.
                 </p>
             </div>
-
             <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
                 {data.airport_name || icao}
             </h1>
-            
-            {/* SOURCE TRANSPARENCY */}
             <div className="flex flex-col items-center justify-center gap-1 text-xs">
-                {data.raw_data.weather_source !== icao ? (
+                {raw.weather_source !== icao ? (
                     <>
-                        <p className="text-orange-400 font-bold">⚠️ Weather Source: {data.raw_data.weather_source}</p>
+                        <p className="text-orange-400 font-bold flex items-center justify-center gap-2">
+                          <TriangleAlert className="w-4 h-4" /> 
+                          <span>Weather Source: {raw.weather_source}</span>
+                        </p>
                         <p className="text-neutral-400">Airspace & NOTAMs Source: {icao}</p>
                     </>
                 ) : (
@@ -182,46 +164,39 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* MISSION SUMMARY (Current Conditions + Airspace + Notams) */}
+          {/* SUMMARY */}
           <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow-xl">
             <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Mission Summary</h3>
-            <p className="text-gray-200 leading-relaxed text-base">{data.analysis.executive_summary}</p>
+            <p className="text-gray-200 leading-relaxed text-base">{analysis.executive_summary}</p>
           </div>
 
-          {/* TIMELINE (Hidden if NO TAF) */}
-          {data.analysis.timeline.t_06 !== "NO_TAF" ? (
+          {/* TIMELINE */}
+          {timeline.t_06 && timeline.t_06 !== "NO_TAF" ? (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-5">
                     <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">Next 6 Hours</span>
-                    <p className="text-sm text-gray-300 leading-relaxed">{data.analysis.timeline.t_06}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{timeline.t_06}</p>
                 </div>
                 <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-5">
                     <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">Next 12 Hours</span>
-                    <p className="text-sm text-gray-300 leading-relaxed">{data.analysis.timeline.t_12}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{timeline.t_12}</p>
                 </div>
              </div>
           ) : (
             <div className="p-4 border border-neutral-800 rounded-lg text-center">
-                <p className="text-neutral-500 text-sm italic">Forecast (TAF) not available for this station.</p>
+                <p className="text-neutral-500 text-sm italic">Forecast (TAF) not available.</p>
             </div>
           )}
 
-          {/* BUBBLES (Spelled Out Labels + Wind Risk) */}
+          {/* BUBBLES - Added Optional Chaining '?.' to prevent crash */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Bubble label="CATEGORY" value={data.analysis.flight_category} highlight={true} />
-            
-            {/* Pass the new wind_risk data here */}
-            <Bubble 
-                label="WIND" 
-                value={data.analysis.bubbles.wind} 
-                risk={data.analysis.wind_risk} 
-            />
-            
-            <Bubble label="CEILING" value={data.analysis.bubbles.ceiling} />
-            <Bubble label="VISIBILITY" value={data.analysis.bubbles.visibility} />
+            <Bubble label="CATEGORY" value={analysis.flight_category} highlight={true} />
+            <Bubble label="WIND" value={bubbles?.wind || "--"} risk={analysis.wind_risk} />
+            <Bubble label="CEILING" value={bubbles?.ceiling || "--"} />
+            <Bubble label="VISIBILITY" value={bubbles?.visibility || "--"} />
           </div>
 
-          {/* RAW METAR/TAF */}
+          {/* RAW DATA */}
           <div className="pt-2">
             <details className="group bg-black border border-neutral-800 rounded-lg">
               <summary className="list-none cursor-pointer p-4 text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center justify-between select-none">
@@ -230,7 +205,7 @@ const Dashboard = () => {
               </summary>
               <div className="px-4 pb-4">
                 <pre className="text-green-400 text-xs overflow-x-auto whitespace-pre-wrap font-mono">
-                  METAR: {data.raw_data.metar}{"\n\n"}TAF: {data.raw_data.taf}
+                  METAR: {raw.metar}{"\n\n"}TAF: {raw.taf}
                 </pre>
               </div>
             </details>
@@ -239,50 +214,47 @@ const Dashboard = () => {
           {/* AIRSPACE */}
           <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6">
             <h3 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-3">Airspace & TFRs</h3>
-            {data.analysis.airspace_warnings && data.analysis.airspace_warnings.length > 0 ? (
+            {analysis.airspace_warnings?.length > 0 ? (
                 <ul className="list-disc pl-5 text-orange-400 space-y-2 text-sm">
-                    {data.analysis.airspace_warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    {analysis.airspace_warnings.map((w, i) => <li key={i}>{w}</li>)}
                 </ul>
             ) : (
                 <div className="space-y-2">
-                    <p className="text-gray-400 text-sm">
-                        <span className="text-yellow-500 font-bold">⚠️ LIMITATION:</span> Checked Permanent Prohibited Zones only (P-40, DC SFRA, etc).
+                    <p className="text-gray-400 text-sm flex items-start gap-2">
+                      <span className="text-yellow-500 font-bold flex items-center gap-1 shrink-0">
+                          <TriangleAlert className="w-4 h-4" /> LIMITATION:
+                        </span>
+                        <span>Only Checked Permanent Prohibited Zones (P-40, DC SFRA, etc).</span>
                     </p>
                     <p className="text-xs text-neutral-500">
-                        This tool DOES NOT check dynamic TFRs (VIP, Fire, Stadiums). 
-                        <a href="https://tfr.faa.gov/" target="_blank" rel="noreferrer" className="text-blue-400 underline ml-1 hover:text-blue-300">
-                            Verify officially at tfr.faa.gov
-                        </a>
+                        Check dynamic TFRs at <a href="https://tfr.faa.gov/" target="_blank" rel="noreferrer" className="text-blue-400 underline">tfr.faa.gov</a>
                     </p>
                 </div>
             )}
           </div>
 
-          {/* NOTAMs (Summary) */}
+          {/* NOTAMS */}
           <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6">
             <h3 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-3">Critical NOTAMs</h3>
-            {data.analysis.critical_notams && data.analysis.critical_notams.length > 0 ? (
+            {analysis.critical_notams?.length > 0 ? (
                 <ul className="list-disc pl-5 text-yellow-200 space-y-2 text-sm">
-                    {data.analysis.critical_notams.map((n, i) => <li key={i}>{n}</li>)}
+                    {analysis.critical_notams.map((n, i) => <li key={i}>{n}</li>)}
                 </ul>
             ) : (
                 <p className="text-gray-500 italic text-sm">No critical NOTAMs flagged.</p>
             )}
           </div>
 
-          {/* RAW NOTAMS - Fixed: Single text block with explicit double line breaks */}
+          {/* RAW NOTAMS */}
           <div className="pb-10">
             <details className="group bg-black border border-neutral-800 rounded-lg">
               <summary className="list-none cursor-pointer p-4 text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center justify-between select-none">
-                <span>VIEW ALL RAW NOTAMS ({data.raw_data.notams.filter(n => n.trim().length > 0).length})</span>
+                <span>VIEW ALL RAW NOTAMS ({raw.notams?.length || 0})</span>
                 <span className="text-gray-600 group-open:rotate-180 transition-transform">▼</span>
               </summary>
-              
               <div className="px-4 pb-4">
                 <div className="h-96 overflow-y-scroll text-green-400 text-xs font-mono p-4 whitespace-pre-wrap">
-                  {data.raw_data.notams
-                    .filter(notam => notam && notam.trim().length > 0) // Remove ghosts
-                    .join('\n\n\n')} 
+                  {raw.notams?.filter(n => n.trim().length > 0).join('\n\n\n')} 
                 </div>
               </div>
             </details>

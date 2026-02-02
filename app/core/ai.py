@@ -1,14 +1,14 @@
 import os
 import json
-from openai import AsyncOpenAI  # <--- CHANGED to AsyncOpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
+from app.core.settings import settings  # <--- NEW IMPORT for Dynamic Model
 
 load_dotenv()
 
 # Initialize Async Client
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# CHANGED: Added 'async' keyword
 async def analyze_risk(icao_code, weather_data, notams, plane_size="small", reporting_station=None, external_airspace_warnings=[]):
     
     profiles = {
@@ -22,8 +22,7 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
     if reporting_station and reporting_station != icao_code:
         station_context = f"NOTE: Target {icao_code} has no weather. Using {reporting_station} for METAR/TAF."
 
-    # --- UPDATED AIRSPACE LOGIC ---
-    # Default message: No *Permanent* restrictions found, but warn about TFRs.
+    # --- AIRSPACE LOGIC ---
     airspace_alert_text = """
     NOTE: No intersection with Permanent Prohibited/Restricted zones (P-40, DC SFRA, etc.) detected.
     
@@ -32,7 +31,6 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
     """
     
     if external_airspace_warnings:
-        # Convert list to a bulleted string
         bullet_list = "\n".join([f"- {w}" for w in external_airspace_warnings])
         airspace_alert_text = f"""
         [MANDATORY INCLUSION]
@@ -42,6 +40,7 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
         CRITICAL: Also verify dynamic TFRs at https://tfr.faa.gov/
         """
 
+    # --- PROMPT LOGIC ---
     system_prompt = f"""
     You are a Chief Pilot acting as a Go/No-Go decision aid.
     AIRCRAFT PROFILE: {selected_profile}
@@ -58,28 +57,29 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
        - Within 5kts -> "MODERATE"
        - Else -> "LOW"
 
-    3. EXECUTIVE SUMMARY (Strict 3-Part Structure):
-       - PART 1: Conditions (VFR/IFR, Ceiling, Vis).
-       - PART 2: Wind/Runway (Favored Runway & Calculated X-Wind status).
-       - PART 3: Airspace/NOTAMs (You MUST summarize the MANDATORY ALERTS provided in the input).
+    3. CRITICAL NOTAMS (PLAIN ENGLISH TRANSLATION):
+       - First, scan raw NOTAMs for MAJOR hazards (Runway Closures, Approach Lighting Out, Tower Closed).
+       - Select the top 1-3 most critical.
+       - TRANSLATE to Plain English.
+    
+    4. EXECUTIVE SUMMARY (Cohesive Narrative):
+       - Write a single, flowing paragraph (DO NOT use labels like "Part 1" or bullet points).
+       - Start with the conditions (VFR/IFR, Ceiling, Vis).
+       - Move to the favored runway and crosswind calculation.
+       - End with Airspace warnings and a summary of the Critical NOTAMs you identified.
        
-    4. TIMELINE: 
+    5. TIMELINE: 
        - If no TAF, return "NO_TAF".
        - Else, summarize next 6/12/24 hours in plain English.
     
-    5. BUBBLES: Return HUMAN READABLE short text.
+    6. BUBBLES: Return HUMAN READABLE short text.
        - Wind: e.g., "North at 10kts"
-
-    6. CRITICAL NOTAMS (PLAIN ENGLISH TRANSLATION):
-       - Review raw NOTAMs.
-       - Select critical ones (Closures, Lighting, Hazards).
-       - TRANSLATE to Plain English.
     
     OUTPUT JSON FORMAT ONLY:
     {{
         "flight_category": "VFR" | "MVFR" | "IFR" | "LIFR",
         "wind_risk": "LOW" | "MODERATE" | "HIGH",
-        "executive_summary": "Summary text...",
+        "executive_summary": "VFR conditions with clear skies... Favored runway is 33L... Critical NOTAMs include...",
         "timeline": {{ "t_06": "...", "t_12": "...", "t_24": "..." }},
         "bubbles": {{ 
             "wind": "North at 10kts", 
@@ -88,7 +88,7 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
             "temp": "24°C" 
         }},
         "airspace_warnings": ["..."],
-        "critical_notams": ["..."]
+        "critical_notams": ["(Plain English NOTAM 1)", "(Plain English NOTAM 2)"]
     }}
     """
 
@@ -105,15 +105,33 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
     """
 
     try:
+        # DYNAMIC MODEL SELECTION
+        model_id = settings.get("openai_model", "gpt-4o-mini")
+
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=model_id,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
             response_format={"type": "json_object"}
         )
-        return json.loads(response.choices[0].message.content)
+        
+        # EXTRACT USAGE
+        usage = response.usage
+        tokens = usage.total_tokens if usage else 0
+        model_used = response.model
+
+        result = json.loads(response.choices[0].message.content)
+        
+        # Inject metadata into result so the router can log it
+        result['_meta'] = {
+            "tokens": tokens,
+            "model": model_used
+        }
+        
+        return result
+
     except Exception as e:
         print(f"AI ERROR: {e}")
         return {

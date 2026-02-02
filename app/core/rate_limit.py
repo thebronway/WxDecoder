@@ -1,75 +1,86 @@
-import time
+import sqlite3
 import ipaddress
 from fastapi import Request, HTTPException
+from app.core.settings import settings
+from app.core.logger import DB_PATH
 
 class RateLimiter:
-    def __init__(self, calls: int, period: int):
-        self.calls = calls       # Max calls allowed
-        self.period = period     # Time period in seconds
-        self.clients = {}        # Dictionary to store IPs
-        
-        # Define Exempt Networks
+    def __init__(self):
+        # Exempt networks (Localhost, Docker internal)
         self.exempt_networks = [
-            ipaddress.ip_network("127.0.0.0/8"),     # Localhost IPv4
-            ipaddress.ip_network("::1/128"),         # Localhost IPv6
-            ipaddress.ip_network("10.0.0.0/8"),     # Your Local Network
-            ipaddress.ip_network("172.16.0.0/12"),   # Docker Internal Ranges (Just in case)
+            ipaddress.ip_network("127.0.0.0/8"),
+            ipaddress.ip_network("::1/128"),
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
         ]
 
     async def __call__(self, request: Request):
-        # 1. Get Real IP
-        client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
-
-        # 2. Check Exemption (The "VIP List")
         try:
-            ip_obj = ipaddress.ip_address(client_ip)
-            
-            # CRITICAL FIX: Handle IPv4-mapped IPv6 addresses (e.g. ::ffff:10.0.0.71)
-            if ip_obj.version == 6 and ip_obj.ipv4_mapped:
-                ip_obj = ip_obj.ipv4_mapped
+            max_calls = int(settings.get("rate_limit_calls", 5))
+            period = int(settings.get("rate_limit_period", 300))
+        except:
+            max_calls = 5
+            period = 300
 
-            is_exempt = False
-            for network in self.exempt_networks:
-                if ip_obj in network:
-                    is_exempt = True
-                    break
-            
-            # DEBUG PRINT (Check your Docker logs for this!)
-            print(f"DEBUG: RateLimit IP=[{ip_obj}] Exempt=[{is_exempt}]")
-
-            if is_exempt:
-                return # User is VIP, skip the limit
-
-        except ValueError:
-            # If IP is malformed, just proceed to limit
-            print(f"DEBUG: RateLimit Malformed IP: {client_ip}")
-            pass
-
-        # 3. Standard Rate Limiting Logic
-        current_time = time.time()
-        
-        # Use the string version of the standardized IP object
-        ip_key = str(ip_obj)
-
-        if ip_key not in self.clients:
-            self.clients[ip_key] = []
-
-        # 4. Clean up old timestamps
-        self.clients[ip_key] = [
-            t for t in self.clients[ip_key] 
-            if current_time - t < self.period
-        ]
-
-        # 5. Check if limit exceeded
-        if len(self.clients[ip_key]) >= self.calls:
-            print(f"DEBUG: BLOCKED IP {ip_key} (Count: {len(self.clients[ip_key])} >= {self.calls})")
-            raise HTTPException(
+        if max_calls <= 0:
+             raise HTTPException(
                 status_code=429, 
-                detail=(
-                    "Rate limit exceeded. To keep this tool free and ad-free, "
-                    "analysis is limited to 5 searches every 5 minutes."
-                )
+                detail="System is currently rejecting new requests (Rate Limit 0)."
             )
 
-        # 6. Add new timestamp
-        self.clients[ip_key].append(current_time)
+        client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
+        client_id = request.headers.get("X-Client-ID")
+
+        # Exemption Check
+        try:
+            ip_obj = ipaddress.ip_address(client_ip)
+            if ip_obj.version == 6 and ip_obj.ipv4_mapped:
+                ip_obj = ip_obj.ipv4_mapped
+            for network in self.exempt_networks:
+                if ip_obj in network: return 
+        except ValueError: pass
+
+        # DATABASE CHECK
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            
+            cutoff_time = f"-{period} seconds"
+            
+            if client_id and client_id not in ["null", "undefined"]:
+                query = """
+                    SELECT COUNT(*) FROM logs 
+                    WHERE client_id = ? 
+                    AND timestamp > datetime('now', ?)
+                    AND status NOT IN ('CACHE_HIT', 'RATE_LIMIT')
+                """
+                params = (client_id, cutoff_time)
+            else:
+                query = """
+                    SELECT COUNT(*) FROM logs 
+                    WHERE ip_address = ? 
+                    AND timestamp > datetime('now', ?)
+                    AND status NOT IN ('CACHE_HIT', 'RATE_LIMIT')
+                """
+                params = (client_ip, cutoff_time)
+
+            c.execute(query, params)
+            count = c.fetchone()[0]
+            conn.close()
+
+            if count >= max_calls:
+                # RESTORED ORIGINAL MESSAGE
+                raise HTTPException(
+                    status_code=429, 
+                    detail=(
+                        "Rate limit exceeded. To keep this tool free, "
+                        "analysis is limited to 5 searches every 5 minutes. "
+                        "Buy Me A Fuel Top-Up in the Footer helps with server costs"
+                    )
+                )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"RATE LIMIT DB ERROR: {e}")
+            pass

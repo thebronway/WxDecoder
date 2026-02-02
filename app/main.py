@@ -26,10 +26,21 @@ app.include_router(routes.router)
 if os.path.exists("/app/static/assets"):
     app.mount("/assets", StaticFiles(directory="/app/static/assets"), name="assets")
 
+# --- NEW: Explicit Favicon Handling ---
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.png", include_in_schema=False)
+async def favicon():
+    # Tries both common names in your static folder
+    possible_paths = ["/app/static/favicon.png", "/app/static/favicon.ico"]
+    for path in possible_paths:
+        if os.path.exists(path):
+            return FileResponse(path)
+    return {"error": "Favicon not found"}
+
 # 3. Catch-All: Serve static files if they exist, otherwise index.html (SPA support)
 @app.get("/{full_path:path}")
 async def serve_app(full_path: str):
-    # 1. Check if the specific file exists (e.g. favicon.ico, robots.txt)
+    # 1. Check if the specific file exists (e.g. robots.txt)
     file_path = os.path.join("/app/static", full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
