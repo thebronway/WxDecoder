@@ -2,30 +2,13 @@ import httpx
 import re
 
 def clean_html(raw_text):
-    """
-    Removes HTML tags and cleans up spacing.
-    """
-    if not raw_text:
-        return ""
-    
-    # 1. Replace <br> variants with a newline
+    if not raw_text: return ""
     text = re.sub(r'<br\s*/?>', '\n', raw_text, flags=re.IGNORECASE)
-    
-    # 2. Remove all other HTML tags
     text = re.sub(r'<[^>]+>', '', text)
-    
-    # 3. Collapse multiple newlines into one
     text = re.sub(r'\n\s*\n', '\n', text)
-    
-    # 4. Collapse multiple spaces into one
-    text = re.sub(r' +', ' ', text)
-    
     return text.strip()
 
 async def get_notams(icao_code):
-    """
-    Async version of the NOTAM fetcher.
-    """
     if len(icao_code) == 3:
         icao_code = f"K{icao_code}"
         
@@ -38,12 +21,13 @@ async def get_notams(icao_code):
     }
     headers = {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "User-Agent": "Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (GoNoGo-AI)"
     }
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, data=payload, headers=headers)
+            
             if response.status_code == 200:
                 data = response.json()
                 notam_list = []
@@ -57,6 +41,12 @@ async def get_notams(icao_code):
                 
                 return notam_list if notam_list else ["No active NOTAMs found."]
             else:
-                return [f"FAA Portal Error (Status {response.status_code})."]
-        except Exception as e:
-            return [f"Connection Error: {e}"]
+                print(f"FAA API Error: Status {response.status_code}")
+                return [f"NOTAMs unavailable (FAA Source Error {response.status_code})."]
+
+    except httpx.TimeoutException:
+        print("FAA API Timeout")
+        return ["NOTAMs unavailable (Connection Timeout)."]
+    except Exception as e:
+        print(f"NOTAM Scraping Error: {e}")
+        return ["NOTAMs unavailable (System Error)."]

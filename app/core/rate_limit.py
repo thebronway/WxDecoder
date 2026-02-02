@@ -1,84 +1,68 @@
-import sqlite3
 import ipaddress
 from fastapi import Request, HTTPException
 from app.core.settings import settings
-from app.core.logger import DB_PATH
+from app.core.db import redis_client
 
 class RateLimiter:
     def __init__(self):
+        # RESTORED: 10.x exemption as requested
         self.exempt_networks = [
             ipaddress.ip_network("127.0.0.0/8"),
             ipaddress.ip_network("::1/128"),
-            ipaddress.ip_network("10.0.0.0/8"),
-            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("10.0.0.0/8"), 
         ]
 
     async def __call__(self, request: Request):
         try:
+            # Force refresh from cache to ensure "1" applies instantly
+            # (Settings are cached in memory, so this is fast)
             max_calls = int(settings.get("rate_limit_calls", 5))
             period = int(settings.get("rate_limit_period", 300))
         except:
             max_calls = 5
             period = 300
 
+        # Allow disabling limits by setting to 0
         if max_calls <= 0:
-             raise HTTPException(
-                status_code=429, 
-                detail="System is currently rejecting new requests (Rate Limit 0)."
-            )
+             return
 
+        # 1. Identify User
+        # We prefer X-Client-ID (Frontend UUID), fallback to IP
         client_ip = request.headers.get("X-Forwarded-For", request.client.host).split(',')[0].strip()
         client_id = request.headers.get("X-Client-ID")
-
-        # Exemption Check
+        
+        identifier = client_id if (client_id and client_id not in ["null", "undefined", "UNKNOWN"]) else client_ip
+        
+        # 2. Check Exemptions
         try:
             ip_obj = ipaddress.ip_address(client_ip)
-            if ip_obj.version == 6 and ip_obj.ipv4_mapped:
-                ip_obj = ip_obj.ipv4_mapped
             for network in self.exempt_networks:
-                if ip_obj in network: return 
+                if ip_obj in network: 
+                    # print(f"DEBUG: RateLimit EXEMPT IP={client_ip}") 
+                    return 
         except ValueError: pass
 
-        # DATABASE CHECK
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            
-            cutoff_time = f"-{period} seconds"
-            
-            if client_id and client_id not in ["null", "undefined"]:
-                query = """
-                    SELECT COUNT(*) FROM logs 
-                    WHERE client_id = ? 
-                    AND timestamp > datetime('now', ?)
-                    AND status NOT IN ('CACHE_HIT', 'RATE_LIMIT')
-                """
-                params = (client_id, cutoff_time)
-            else:
-                query = """
-                    SELECT COUNT(*) FROM logs 
-                    WHERE ip_address = ? 
-                    AND timestamp > datetime('now', ?)
-                    AND status NOT IN ('CACHE_HIT', 'RATE_LIMIT')
-                """
-                params = (client_ip, cutoff_time)
+        # 3. REDIS CHECK
+        redis_key = f"rate_limit:{identifier}"
 
-            c.execute(query, params)
-            count = c.fetchone()[0]
-            conn.close()
+        # Increment counter (Atomic)
+        current_count = await redis_client.incr(redis_key)
 
-            if count >= max_calls:
-                raise HTTPException(
-                    status_code=429, 
-                    detail=(
+        # Set expiration on first hit
+        if current_count == 1:
+            await redis_client.expire(redis_key, period)
+
+        # DEBUG LOG (Check this in 'docker logs' to verify it sees Limit=1)
+        print(f"DEBUG: RateLimit Key={redis_key} Count={current_count}/{max_calls}")
+
+        if current_count > max_calls:
+            raise HTTPException(
+                status_code=429, 
+                detail=(
                         "Rate limit exceeded. To keep this tool free, "
                         "analysis is limited to 5 searches every 5 minutes. "
                         "Buy Me A Fuel Top-Up in the Footer helps with server costs"
                     )
-                )
+            )
 
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"RATE LIMIT DB ERROR: {e}")
-            pass
+limiter = RateLimiter()

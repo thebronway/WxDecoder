@@ -1,11 +1,10 @@
 import os
 import smtplib
 import json
-import sqlite3
 import httpx
 from email.message import EmailMessage
 from dotenv import load_dotenv
-from app.core.logger import DB_PATH
+from app.core.db import database
 from app.core.settings import settings
 
 load_dotenv()
@@ -13,23 +12,22 @@ load_dotenv()
 class NotificationManager:
     def __init__(self):
         self.smtp_host = os.getenv("SMTP_HOST")
-        self.smtp_port = int(os.getenv("SMTP_PORT", 587))
+        port_str = os.getenv("SMTP_PORT", "587")
+        self.smtp_port = int(port_str) if port_str.isdigit() else 587
         self.smtp_user = os.getenv("SMTP_USER")
         self.smtp_pass = os.getenv("SMTP_PASS")
-        
         self.discord_url = os.getenv("DISCORD_WEBHOOK_URL")
         self.slack_url = os.getenv("SLACK_WEBHOOK_URL")
 
-    def get_rules(self, event_type):
+    async def get_rules(self, event_type):
         try:
-            # ADD TIMEOUT HERE
-            conn = sqlite3.connect(DB_PATH, timeout=10.0)
-            c = conn.cursor()
-            c.execute("SELECT channels FROM notification_rules WHERE event_type = ? AND enabled = 1", (event_type,))
-            row = c.fetchone()
-            conn.close()
+            query = "SELECT channels FROM notification_rules WHERE event_type = :type AND enabled = 1"
+            row = await database.fetch_one(query=query, values={"type": event_type})
+            
             if row:
-                return json.loads(row[0])
+                channels = json.loads(row['channels'])
+                return channels
+            
             print(f"DEBUG: No enabled rules found in DB for event '{event_type}'")
             return []
         except Exception as e:
@@ -37,14 +35,13 @@ class NotificationManager:
             return []
 
     async def send_alert(self, event_type, subject, message):
-        print(f"DEBUG: Processing Alert '{event_type}'")
-        channels = self.get_rules(event_type)
+        channels = await self.get_rules(event_type)
         
         if not channels:
-            print("DEBUG: Channel list empty. Aborting.")
+            print(f"DEBUG: Alert skipped. No channels enabled for '{event_type}'.")
             return
 
-        print(f"DEBUG: Channels active: {channels}")
+        print(f"DEBUG: Sending '{event_type}' alert via: {channels}")
 
         if "smtp" in channels and self.smtp_host:
             self._send_email(subject, message)
@@ -57,10 +54,14 @@ class NotificationManager:
 
     def _send_email(self, subject, body):
         try:
-            from_addr = settings.get("smtp_from_email", self.smtp_user)
-            to_addr = settings.get("admin_alert_email", self.smtp_user)
+            from_addr = settings.get("smtp_from_email")
+            to_addr = settings.get("admin_alert_email")
 
-            print(f"DEBUG: Attempting SMTP to {to_addr} from {from_addr}")
+            if not from_addr or not to_addr:
+                print("DEBUG: Email skipped. Check 'smtp_from_email' and 'admin_alert_email' in Settings.")
+                return
+
+            print(f"DEBUG: Emailing {to_addr}...")
 
             msg = EmailMessage()
             msg.set_content(body)
@@ -89,15 +90,13 @@ class NotificationManager:
             }
             async with httpx.AsyncClient() as client:
                 await client.post(self.discord_url, json=payload)
-        except Exception as e:
-            print(f"DISCORD ERROR: {e}")
+        except Exception: pass
 
     async def _send_slack(self, subject, body):
         try:
             payload = {"text": f"*{subject}*\n{body}"}
             async with httpx.AsyncClient() as client:
                 await client.post(self.slack_url, json=payload)
-        except Exception as e:
-            print(f"SLACK ERROR: {e}")
+        except Exception: pass
 
 notifier = NotificationManager()

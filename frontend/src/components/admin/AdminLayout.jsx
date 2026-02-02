@@ -23,7 +23,7 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-black pt-20"> {/* pt-20 to clear fixed header */}
+    <div className="flex flex-col lg:flex-row min-h-screen bg-black pt-20">
       
       {/* SIDEBAR */}
       <aside className="w-full lg:w-64 p-4 border-r border-neutral-800 lg:min-h-[80vh]">
@@ -39,7 +39,7 @@ const AdminLayout = ({ children }) => {
       </aside>
 
       {/* CONTENT AREA */}
-      <main className="flex-1 p-4 lg:p-8 overflow-x-auto">
+      <main className="flex-1 p-4 lg:p-8 overflow-x-auto relative">
         {children}
       </main>
     </div>

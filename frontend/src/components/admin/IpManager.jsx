@@ -9,7 +9,6 @@ const IpManager = () => {
 
   const fetchClients = async () => {
     try {
-      // UPDATED ENDPOINT
       const res = await fetch("/api/admin/clients");
       if (res.ok) setClients(await res.json());
     } catch (err) {
@@ -26,21 +25,26 @@ const IpManager = () => {
   const handleUnblock = async (key) => {
     if (!confirm(`Unblock User?`)) return;
     try {
+      // 1. Optimistic Update (Instant Feedback)
+      setClients(prev => prev.map(client => 
+        client.limit_key === key ? { ...client, is_limited: false } : client
+      ));
+
+      // 2. Perform Request
       const res = await fetch("/api/admin/unblock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // SEND THE KEY (ID:xxx or IP:xxx)
         body: JSON.stringify({ key })
       });
-      if (res.ok) {
-        fetchClients(); 
-      }
+      
+      // 3. Refresh Real Data
+      if (res.ok) fetchClients(); 
     } catch (err) {
       alert("Failed to unblock");
+      fetchClients(); // Revert on error
     }
   };
 
-  // Filter by ID or IP
   const filtered = clients.filter(item => 
       (item.client_id || "").toLowerCase().includes(search.toLowerCase()) || 
       (item.last_ip || "").includes(search)

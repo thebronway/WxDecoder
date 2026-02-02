@@ -1,16 +1,42 @@
 import os
+import asyncio  # <--- ADDED: Required for background tasks
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import routes
-from app.core.logger import init_db
+from app.api.router import router as api_router
+from app.core.db import database, init_db_tables
+from app.core.settings import settings
+from app.core.probes import run_probes
 
-init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP
+    print("DEBUG: Connecting to Database and Cache...")
+    await database.connect()
+    
+    # 1. Create Tables (Prevent Race Condition with try/except)
+    try:
+        await init_db_tables()
+    except Exception as e:
+        print(f"DEBUG: Table init skipped (Race Condition): {e}")
 
-app = FastAPI()
+    # 2. Load Settings
+    print("DEBUG: Loading System Settings...")
+    await settings.load()
+    
+    # 3. Start Background Probes (OpenAI/FAA Health Checks)
+    asyncio.create_task(run_probes())  # <--- ADDED: Starts the infinite loop
+    
+    print("DEBUG: Systems Online.")
+    yield
+    # SHUTDOWN
+    print("DEBUG: Disconnecting...")
+    await database.disconnect()
 
-# Allow CORS for local development (if needed)
+app = FastAPI(lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,34 +45,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. Include API Routes
-app.include_router(routes.router)
+app.include_router(api_router)
 
-# 2. Serve Static Assets (JS/CSS built by React)
 if os.path.exists("/app/static/assets"):
     app.mount("/assets", StaticFiles(directory="/app/static/assets"), name="assets")
 
-# --- NEW: Explicit Favicon Handling ---
 @app.get("/favicon.ico", include_in_schema=False)
 @app.get("/favicon.png", include_in_schema=False)
 async def favicon():
-    # Tries both common names in your static folder
     possible_paths = ["/app/static/favicon.png", "/app/static/favicon.ico"]
     for path in possible_paths:
         if os.path.exists(path):
             return FileResponse(path)
     return {"error": "Favicon not found"}
 
-# 3. Catch-All: Serve static files if they exist, otherwise index.html (SPA support)
 @app.get("/{full_path:path}")
 async def serve_app(full_path: str):
-    # 1. Check if the specific file exists (e.g. robots.txt)
     file_path = os.path.join("/app/static", full_path)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
-
-    # 2. If not, serve index.html and let React handle the routing
     if os.path.exists("/app/static/index.html"):
         return FileResponse("/app/static/index.html")
-    
     return {"error": "Frontend not built. Check Dockerfile."}

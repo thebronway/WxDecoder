@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Megaphone, Fuel } from 'lucide-react'; // Added Megaphone
 import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/admin/AdminDashboard';
 import IpManager from './components/admin/IpManager';
@@ -7,17 +8,33 @@ import Settings from './components/admin/Settings';
 import About from './components/About';
 import Disclaimer from './components/Disclaimer';
 import NotFound from './components/NotFound';
-import { Fuel } from 'lucide-react';
 
 function App() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [banner, setBanner] = useState(null); // Banner State
 
-  // Scroll listener
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    // 1. Handle Scroll
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
+
+    // 2. Fetch Banner Settings
+    const fetchBanner = async () => {
+        try {
+            const res = await fetch("/api/admin/settings");
+            if(res.ok) {
+                const data = await res.json();
+                const enabled = data.config.find(c => c.key === "banner_enabled")?.value === "true";
+                const message = data.config.find(c => c.key === "banner_message")?.value;
+                if(enabled && message) setBanner(message);
+                else setBanner(null);
+            }
+        } catch(e) {
+            console.error("Failed to load settings", e);
+        }
+    };
+    fetchBanner();
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -36,19 +53,9 @@ function App() {
             {/* LOGO AREA */}
             <Link to="/" className="group relative flex items-center gap-3">
                 {isScrolled ? (
-                   // SCROLLED STATE (Flat Logo)
-                   <img 
-                     src="/logo-flat.webp" 
-                     alt="GoNoGo Logo" 
-                     className="h-8 md:h-10 w-auto object-contain transition-all" 
-                   />
+                   <img src="/logo-flat.webp" alt="GoNoGo Logo" className="h-8 md:h-10 w-auto object-contain transition-all" />
                 ) : (
-                   // TOP STATE (Square Logo)
-                   <img 
-                     src="/logo-square.webp" 
-                     alt="GoNoGo Logo" 
-                     className="w-28 h-28 md:w-52 md:h-52 rounded-xl shadow-2xl group-hover:scale-[1.02] transition-transform duration-300 origin-bottom-left" 
-                   />
+                   <img src="/logo-square.webp" alt="GoNoGo Logo" className="w-28 h-28 md:w-44 md:h-44 rounded-xl shadow-2xl group-hover:scale-[1.02] transition-transform duration-300 origin-bottom-left" />
                 )}
             </Link>
 
@@ -68,12 +75,24 @@ function App() {
         {/* SPACER */}
         <div className={`transition-all duration-300 ${isScrolled ? 'pt-20' : 'pt-32 md:pt-80'}`}></div>
 
+        {/* SITE-WIDE BANNER (NEW) */}
+        {banner && (
+            <div className="max-w-5xl mx-auto px-4 md:px-6 w-full mb-6 animate-fade-in">
+                <div className="bg-blue-900/20 border border-blue-800 text-blue-300 px-4 py-3 rounded-lg flex items-center gap-3 shadow-lg backdrop-blur-md">
+                    <Megaphone size={20} className="animate-pulse shrink-0" />
+                    <span className="font-bold text-sm tracking-wide">{banner}</span>
+                </div>
+            </div>
+        )}
+
         {/* MAIN CONTENT */}
         <main className="flex-grow w-full p-4 md:p-6 relative z-0">
            <Routes>
              <Route path="/" element={<Dashboard />} />
              <Route path="/about" element={<About />} />
              <Route path="/disclaimer" element={<Disclaimer />} />
+             
+             {/* Admin Routes */}
              <Route path="/admin" element={<AdminDashboard />} />
              <Route path="/admin/dashboard" element={<AdminDashboard />} />
              <Route path="/admin/ip" element={<IpManager />} />
@@ -85,10 +104,9 @@ function App() {
 
         {/* FOOTER */}
         <footer className="w-full py-8 text-center border-t border-neutral-800 bg-black text-xs text-neutral-600 space-y-4 relative z-10">
-          <p>&copy; {new Date().getFullYear()} GoNoGo AI v0.31 • Built for Pilots • All rights reserved</p>
+          <p>&copy; {new Date().getFullYear()} GoNoGo AI v0.4 • Built for Pilots • All rights reserved</p>
           <div className="flex flex-col items-center gap-2">
             <span className="text-neutral-500 italic">Help with server and API costs:</span>
-            
             <a 
               href="#" 
               target="_blank" 

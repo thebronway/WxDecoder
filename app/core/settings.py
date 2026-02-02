@@ -1,51 +1,48 @@
-import sqlite3
-import time
-from app.core.logger import DB_PATH
+import json
+from app.core.db import database
 
 class SettingsManager:
-    def __init__(self):
-        self._cache = {}
-        self._last_fetch = 0
-        self.TTL = 10  # Cache settings for 10 seconds
+    # In-memory cache to reduce DB hits
+    _cache = {}
 
-    def _refresh_cache(self):
-        now = time.time()
-        if now - self._last_fetch < self.TTL:
-            return
-
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            c.execute("SELECT key, value FROM system_settings")
-            rows = c.fetchall()
-            
-            new_cache = {}
-            for row in rows:
-                new_cache[row['key']] = row['value']
-            
-            self._cache = new_cache
-            self._last_fetch = now
-            conn.close()
-        except Exception as e:
-            print(f"SETTINGS ERROR: {e}")
+    async def load(self):
+        """Populate cache from DB on startup"""
+        query = "SELECT key, value FROM system_settings"
+        rows = await database.fetch_all(query=query)
+        self._cache = {row["key"]: row["value"] for row in rows}
 
     def get(self, key, default=None):
-        self._refresh_cache()
+        # We read from memory (fast), no await needed for reading
         return self._cache.get(key, default)
 
-    def set(self, key, value):
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)", (key, str(value)))
-            conn.commit()
-            conn.close()
-            # Invalidate cache immediately
-            self._last_fetch = 0 
-            return True
-        except Exception as e:
-            print(f"SETTINGS WRITE ERROR: {e}")
-            return False
+    async def set(self, key, value):
+        # Write to DB asynchronously
+        query = """
+            INSERT INTO system_settings (key, value) VALUES (:key, :value)
+            ON CONFLICT (key) DO UPDATE SET value = :value
+        """
+        await database.execute(query=query, values={"key": key, "value": str(value)})
+        self._cache[key] = str(value) # Update local cache
+        return True
+
+    async def get_all_rules(self):
+        """Fetch notification rules"""
+        query = "SELECT * FROM notification_rules"
+        rows = await database.fetch_all(query)
+        return [dict(row) for row in rows]
+
+    async def set_rule(self, event_type, channels, enabled):
+        query = """
+            INSERT INTO notification_rules (event_type, channels, enabled) 
+            VALUES (:event_type, :channels, :enabled)
+            ON CONFLICT (event_type) DO UPDATE 
+            SET channels = :channels, enabled = :enabled
+        """
+        values = {
+            "event_type": event_type,
+            "channels": json.dumps(channels),
+            "enabled": 1 if enabled else 0
+        }
+        await database.execute(query, values)
 
 settings = SettingsManager()

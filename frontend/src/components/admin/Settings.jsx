@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from './AdminLayout';
-import { Save, Activity, Mail, Server, ShieldAlert, PauseCircle, CheckCircle2, Send, Zap } from 'lucide-react';
+import { Save, Activity, Mail, Server, ShieldAlert, PauseCircle, CheckCircle2, Send, Zap, Megaphone } from 'lucide-react';
 
 const ConfigInput = ({ label, confKey, value, onChange, onSave, saving, type = "text", placeholder }) => (
   <div className="mb-4">
@@ -45,8 +45,6 @@ const ToggleCell = ({ eventType, channel, label, rules, onToggle }) => {
     );
 };
 
-// --- MAIN COMPONENT ---
-
 const Settings = () => {
   const [settings, setSettings] = useState({});
   const [rules, setRules] = useState([]);
@@ -54,7 +52,6 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
 
-  // --- FETCH DATA ---
   const fetchData = async () => {
     try {
       const res = await fetch("/api/admin/settings");
@@ -75,7 +72,6 @@ const Settings = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // --- HANDLERS ---
   const handleChange = (key, val) => {
     setSettings(prev => ({ ...prev, [key]: val }));
   };
@@ -93,6 +89,22 @@ const Settings = () => {
       alert("Failed to save");
       setSaving(null);
     }
+  };
+
+  // NEW: Optimized Toggle Handler
+  const toggleGlobalPause = () => {
+      const newValue = settings.global_pause === "true" ? "false" : "true";
+      // 1. Update UI Immediately
+      handleChange("global_pause", newValue);
+      // 2. Save in background
+      handleSaveConfig("global_pause", newValue);
+  };
+
+  // NEW: Banner Toggle
+  const toggleBanner = () => {
+    const newValue = settings.banner_enabled === "true" ? "false" : "true";
+    handleChange("banner_enabled", newValue);
+    handleSaveConfig("banner_enabled", newValue);
   };
 
   const handleToggleRule = async (eventType, channel) => {
@@ -158,7 +170,7 @@ const Settings = () => {
                 </div>
                 <div className="flex items-center gap-4">
                      <button 
-                        onClick={() => handleSaveConfig("global_pause", settings.global_pause === "true" ? "false" : "true")}
+                        onClick={toggleGlobalPause} // UPDATED
                         className={`flex-1 py-2 rounded font-bold text-xs uppercase tracking-wider ${
                             settings.global_pause === "true" 
                             ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/50' 
@@ -175,6 +187,24 @@ const Settings = () => {
                 )}
             </div>
 
+            {/* BANNER CONFIG (NEW) */}
+            <div className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-xl">
+                 <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-2">
+                    <div className="flex items-center gap-2">
+                        <Megaphone size={18} className="text-orange-400" />
+                        <h3 className="font-bold text-white">Site Banner</h3>
+                    </div>
+                    {/* TOGGLE SWITCH */}
+                    <div 
+                        onClick={toggleBanner}
+                        className={`w-10 h-5 rounded-full cursor-pointer p-1 transition-colors ${settings.banner_enabled === "true" ? 'bg-blue-600' : 'bg-neutral-700'}`}
+                    >
+                        <div className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${settings.banner_enabled === "true" ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                    </div>
+                </div>
+                <ConfigInput label="Banner Message" confKey="banner_message" value={settings.banner_message} onChange={handleChange} onSave={handleSaveConfig} saving={saving} placeholder="Important announcement..." />
+            </div>
+
             {/* AI ENGINE */}
             <div className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-xl">
                 <div className="flex items-center gap-2 mb-4 border-b border-neutral-800 pb-2">
@@ -182,8 +212,6 @@ const Settings = () => {
                     <h3 className="font-bold text-white">AI Engine</h3>
                 </div>
                 <ConfigInput label="OpenAI Model" confKey="openai_model" value={settings.openai_model} onChange={handleChange} onSave={handleSaveConfig} saving={saving} placeholder="gpt-4o-mini" />
-                
-                {/* Fixed Layout for Numbers */}
                 <div className="grid grid-cols-2 gap-4">
                     <ConfigInput label="Max Calls" confKey="rate_limit_calls" type="number" value={settings.rate_limit_calls} onChange={handleChange} onSave={handleSaveConfig} saving={saving} />
                     <ConfigInput label="Period (Sec)" confKey="rate_limit_period" type="number" value={settings.rate_limit_period} onChange={handleChange} onSave={handleSaveConfig} saving={saving} />
@@ -215,8 +243,7 @@ const Settings = () => {
                 </div>
                 
                 <div className="space-y-4">
-                    {/* RULE ROW: Rate Limit */}
-                    <div className="bg-black/40 p-3 rounded border border-neutral-800">
+                     <div className="bg-black/40 p-3 rounded border border-neutral-800">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-xs font-bold text-white">Rate Limit Hit</span>
                         </div>
@@ -226,8 +253,6 @@ const Settings = () => {
                             <ToggleCell eventType="rate_limit" channel="slack" label="Slack" rules={rules} onToggle={handleToggleRule} />
                         </div>
                     </div>
-
-                    {/* RULE ROW: System Error */}
                     <div className="bg-black/40 p-3 rounded border border-neutral-800">
                         <span className="text-xs font-bold text-white block mb-2">System Error (500)</span>
                         <div className="flex flex-wrap gap-2">
@@ -236,9 +261,17 @@ const Settings = () => {
                             <ToggleCell eventType="error" channel="slack" label="Slack" rules={rules} onToggle={handleToggleRule} />
                         </div>
                     </div>
+                     {/* NEW: API OUTAGE ALERTS */}
+                     <div className="bg-black/40 p-3 rounded border border-neutral-800 border-red-900/30">
+                        <span className="text-xs font-bold text-red-400 block mb-2">API Outage (OpenAI/FAA)</span>
+                        <div className="flex flex-wrap gap-2">
+                            <ToggleCell eventType="api_outage" channel="smtp" label="Email" rules={rules} onToggle={handleToggleRule} />
+                            <ToggleCell eventType="api_outage" channel="discord" label="Discord" rules={rules} onToggle={handleToggleRule} />
+                            <ToggleCell eventType="api_outage" channel="slack" label="Slack" rules={rules} onToggle={handleToggleRule} />
+                        </div>
+                    </div>
                 </div>
                 
-                {/* Test Buttons for Webhooks */}
                 <div className="mt-4 flex gap-2 justify-end border-t border-neutral-800 pt-3">
                      <button onClick={() => handleTestNotification('discord')} className="text-[10px] bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]/50 hover:bg-[#5865F2]/30 px-2 py-1 rounded flex items-center gap-1">
                         <Zap size={10} /> Test Discord
@@ -257,7 +290,6 @@ const Settings = () => {
                     <Server size={18} className="text-green-400" />
                     <h3 className="font-bold text-white">Cost Center</h3>
                 </div>
-                
                 <div className="space-y-4">
                     <div>
                         <span className="text-[10px] text-neutral-500 uppercase font-bold">Total AI Requests</span>
@@ -277,7 +309,7 @@ const Settings = () => {
             </div>
 
             <div className="p-6 bg-neutral-900/50 border border-neutral-800 rounded-xl">
-                <ConfigInput label="Log Timezone" confKey="app_timezone" value={settings.app_timezone} onChange={handleChange} onSave={handleSaveConfig} saving={saving} placeholder="UTC" />
+                <ConfigInput label="Log Timezone" confKey="app_timezone" value={settings.app_timezone} onChange={handleChange} onSave={handleSaveConfig} saving={saving} placeholder="America/New_York" />
             </div>
         </div>
 
