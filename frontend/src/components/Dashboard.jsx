@@ -14,7 +14,7 @@ const getClientId = () => {
   return id;
 };
 
-// Helper to parse METAR time
+// Helper to parse METAR time (Time Only, No Date)
 const getMetarTime = (metarString, timezone) => {
   if (!metarString) return null;
   const match = metarString.match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
@@ -31,7 +31,14 @@ const getMetarTime = (metarString, timezone) => {
   const utcString = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
   const localString = date.toLocaleTimeString('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' });
 
-  return { utc: `${day} ${utcString}Z`, local: localString };
+  return { utc: `${utcString}Z`, local: localString };
+};
+
+// Helper to format Raw TAF for readability
+const formatTaf = (tafText) => {
+    if (!tafText) return "";
+    // Insert newlines before standard forecast change indicators to ensure full list is readable
+    return tafText.replace(/(FM\d{6}|BECMG|TEMPO|PROB\d{2})/g, '\n$1');
 };
 
 const Dashboard = ({ onSearchStateChange }) => {
@@ -221,31 +228,33 @@ const Dashboard = ({ onSearchStateChange }) => {
                 {data.airport_name || icao}
             </h1>
 
-            {/* METAR TIME & SOURCE DISPLAY */}
+            {/* METAR TIME & SOURCE DISPLAY (Updated Layout) */}
             {metarTimes && (
                 <div className="flex flex-col items-center gap-2 mb-8">
-                    <span className="text-[10px] uppercase tracking-widest text-neutral-500 font-bold">METAR generated:</span>
                     
-                    <div className="flex flex-col md:flex-row items-center gap-3">
-                        {/* WARNING PILL (New Option 1) */}
-                        {raw.weather_dist > 0 && (
-                            <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-yellow-200 bg-yellow-900/30 px-6 py-2 rounded-full border border-yellow-700/50 shadow-lg animate-fade-in">
-                                <Info className="w-3 h-3 text-yellow-500" />
-                                <span>METAR from <span className="font-bold">{raw.weather_source}: {raw.weather_name}</span> ({raw.weather_dist}nm away)</span>
-                            </div>
-                        )}
-
-                        {/* TIME PILL */}
-                        <div className="inline-flex items-center justify-center gap-4 text-xs font-mono text-blue-200 bg-blue-900/20 px-6 py-2 rounded-full border border-blue-900/30 shadow-lg shadow-blue-900/10">
-                            <span title="Observation Time (UTC)">
-                                <span className="text-blue-500 font-bold">UTC:</span> {metarTimes.utc}
-                            </span>
-                            <span className="w-px h-3 bg-blue-800/50"></span>
-                            <span title={`Local Time (${data.airport_tz})`}>
-                                <span className="text-blue-500 font-bold">Local:</span> {metarTimes.local}
-                            </span>
-                        </div>
+                    {/* BLUE BUBBLE: Standard Time Display */}
+                    <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-blue-200 bg-blue-900/20 px-6 py-2 rounded-full border border-blue-900/30 shadow-lg shadow-blue-900/10">
+                         <span className="text-[10px] uppercase tracking-widest text-blue-500 font-bold mr-1">METAR Generated:</span>
+                         <span title="Observation Time (UTC)">
+                            <span className="text-blue-500">UTC:</span> {metarTimes.utc}
+                        </span>
+                        <span className="w-px h-3 bg-blue-800/50 mx-1"></span>
+                        <span title={`Local Time (${data.airport_tz})`}>
+                            <span className="text-blue-500">Local:</span> {metarTimes.local}
+                        </span>
                     </div>
+
+                    {/* YELLOW BUBBLE: Source (Stacked, Styled like Blue) */}
+                    {raw.weather_dist > 0 && (
+                        <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-yellow-200 bg-yellow-900/30 px-6 py-2 rounded-full border border-yellow-700/50 shadow-lg animate-fade-in">
+                             <Info className="w-3 h-3 text-yellow-500" />
+                             <span>
+                                METAR Source: <span className="font-bold">{raw.weather_name} ({raw.weather_source})</span>
+                             </span>
+                             <span className="w-px h-3 bg-yellow-700/50 mx-1"></span>
+                             <span>Dist: {raw.weather_dist}nm</span>
+                        </div>
+                    )}
                 </div>
             )}
           </div>
@@ -258,15 +267,24 @@ const Dashboard = ({ onSearchStateChange }) => {
             <p className="text-gray-200 leading-relaxed text-base">{analysis.executive_summary}</p>
           </div>
 
+          {/* TIMELINE CARDS (Human Readable) */}
           {timeline.t_06 && timeline.t_06 !== "NO_TAF" ? (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-5">
-                    <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">Next 6 Hours</span>
-                    <p className="text-sm text-gray-300 leading-relaxed">{timeline.t_06}</p>
+                    <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">
+                        {timeline.t_06.time_label || "Next 6 Hours"}
+                    </span>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                        {timeline.t_06.summary || timeline.t_06}
+                    </p>
                 </div>
                 <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-5">
-                    <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">Next 12 Hours</span>
-                    <p className="text-sm text-gray-300 leading-relaxed">{timeline.t_12}</p>
+                    <span className="text-blue-400 font-bold text-xs block mb-2 uppercase tracking-wide">
+                        {timeline.t_12.time_label || "Next 12 Hours"}
+                    </span>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                        {timeline.t_12.summary || timeline.t_12}
+                    </p>
                 </div>
              </div>
           ) : (
@@ -290,7 +308,8 @@ const Dashboard = ({ onSearchStateChange }) => {
               </summary>
               <div className="px-4 pb-4">
                 <pre className="text-green-400 text-xs overflow-x-auto whitespace-pre-wrap font-mono">
-                  METAR: {raw.metar}{"\n\n"}TAF: {raw.taf}
+                  METAR: {raw.metar}{"\n\n"}
+                  TAF: {formatTaf(raw.taf)}
                 </pre>
               </div>
             </details>
@@ -311,7 +330,7 @@ const Dashboard = ({ onSearchStateChange }) => {
                       <span className="text-yellow-500 font-bold flex items-center gap-1 shrink-0">
                           <TriangleAlert className="w-4 h-4" /> LIMITATION:
                         </span>
-                        <span>Only Checked Permanent Prohibited Zones (P-40, DC SFRA, etc).</span>
+                        <span>Only Clear of Permanent Prohibited Zones (P-40, DC SFRA, etc).</span>
                     </p>
                     <p className="text-xs text-neutral-500">
                         Check dynamic TFRs at <a href="https://tfr.faa.gov/" target="_blank" rel="noreferrer" className="text-blue-400 underline">tfr.faa.gov</a>

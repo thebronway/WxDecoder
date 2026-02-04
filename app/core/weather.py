@@ -11,27 +11,39 @@ async def get_metar_taf(icao_code):
     async with httpx.AsyncClient(timeout=10.0) as client:
         for attempt in range(1, 4):
             try:
-                # This is the non-blocking call
                 response = await client.get(url)
                 
                 if response.status_code == 200:
                     raw_text = response.text.strip()
                     if not raw_text: return None
 
-                    # Split METAR and TAF
                     lines = raw_text.split('\n')
                     metar = None
-                    taf = None
+                    taf_lines = []
+                    in_taf_block = False
 
+                    # Robust parser for potential multi-line responses
                     for line in lines:
-                        if "METAR" in line or (icao_code in line and "TAF" not in line):
-                             if not metar: metar = line
-                        if "TAF" in line:
-                             taf = line
+                        clean_line = line.strip()
+                        if not clean_line: continue
+
+                        # Identify METAR (First line or explicitly marked)
+                        if "METAR" in clean_line or (icao_code in clean_line and "TAF" not in clean_line and not in_taf_block):
+                             if not metar: metar = clean_line
+                        
+                        # Identify TAF Start
+                        if "TAF" in clean_line:
+                             in_taf_block = True
+                        
+                        # Accumulate TAF lines
+                        if in_taf_block:
+                            taf_lines.append(clean_line)
                     
                     # Fallbacks
                     if not metar and lines: metar = lines[0]
-                    if not taf: taf = "No TAF available"
+                    
+                    # Join multi-line TAF into one block
+                    taf = " ".join(taf_lines) if taf_lines else "No TAF available"
 
                     return {
                         "metar": metar.strip(),
@@ -39,7 +51,6 @@ async def get_metar_taf(icao_code):
                     }
             
             except httpx.RequestError as e:
-                # Exponential Backoff: 1s, 2s, 4s...
                 wait_time = 2 ** (attempt - 1)
                 print(f"DEBUG: Weather API Error ({e}). Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)

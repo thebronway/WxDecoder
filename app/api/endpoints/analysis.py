@@ -102,7 +102,6 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
             if 'valid_until' in cached_result:
                 expiration_dt = datetime.datetime.fromtimestamp(cached_result['valid_until'], datetime.timezone.utc)
             
-            # LOGGING: Revert "Lazy K" for display if necessary
             output_for_log = resolved_icao
             if resolved_icao == ("K" + raw_input) and any(char.isdigit() for char in raw_input):
                 output_for_log = raw_input
@@ -118,6 +117,8 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         # 3. FETCH DATA
         airport_data = airports_icao.get(input_icao) or airports_lid.get(input_icao)
         airport_name = airport_data['name'] if airport_data else input_icao
+        airport_tz = airport_data.get('tz', 'UTC') if airport_data else 'UTC'
+        
         if airport_data: resolved_icao = airport_data.get('icao', input_icao)
 
         airspace_warnings = []
@@ -166,13 +167,15 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
 
         t0 = time.time()
         
-        # FIX: Pass the Airport NAME to the AI to prevent "At K2W5..."
+        # Pass TZ to AI for human-readable time conversion
         analysis = await analyze_risk(
             icao_code=airport_name, 
             weather_data=weather_data,
             notams=notams,
             plane_size=request.plane_size,
             reporting_station=weather_icao,
+            reporting_station_name=weather_name,
+            airport_tz=airport_tz, 
             external_airspace_warnings=airspace_warnings
         )
         t_ai = time.time() - t0
@@ -184,7 +187,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
 
         response_data = {
             "airport_name": airport_name,
-            "airport_tz": airport_data.get('tz', 'UTC') if airport_data else 'UTC',
+            "airport_tz": airport_tz,
             "is_cached": False,
             "analysis": analysis,
             "raw_data": {
