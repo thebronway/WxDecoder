@@ -213,9 +213,8 @@ const Dashboard = ({ onSearchStateChange }) => {
                 <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3 mb-4 mx-auto max-w-2xl animate-fade-in">
                     <div className="flex flex-col md:flex-row items-center justify-center gap-2 text-xs text-gray-400">
                         <span className="font-bold flex items-center gap-1 uppercase tracking-wider text-yellow-500">
-                            <Clock className="w-3 h-3" /> Cached Summary
+                            <Clock className="w-3 h-3" /> Cached Summary:
                         </span>
-                        <span className="hidden md:inline text-neutral-600">•</span>
                         <span>
                             Report retrieved recently. METAR unchanged. 
                             <span className="ml-1 text-neutral-500">Does not count towards rate limits.</span>
@@ -234,13 +233,14 @@ const Dashboard = ({ onSearchStateChange }) => {
                     
                     {/* BLUE BUBBLE: Standard Time Display */}
                     <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-blue-200 bg-blue-900/20 px-6 py-2 rounded-full border border-blue-900/30 shadow-lg shadow-blue-900/10">
+                         <Clock className="w-3 h-3 text-blue-500" />
                          <span className="text-[10px] uppercase tracking-widest text-blue-500 font-bold mr-1">METAR Generated:</span>
                          <span title="Observation Time (UTC)">
-                            <span className="text-blue-500">UTC:</span> {metarTimes.utc}
+                            <span className="text-blue-500">UTC</span> {metarTimes.utc}
                         </span>
                         <span className="w-px h-3 bg-blue-800/50 mx-1"></span>
                         <span title={`Local Time (${data.airport_tz})`}>
-                            <span className="text-blue-500">Local:</span> {metarTimes.local}
+                            <span className="text-blue-500">Local</span> {metarTimes.local}
                         </span>
                     </div>
 
@@ -248,11 +248,11 @@ const Dashboard = ({ onSearchStateChange }) => {
                     {raw.weather_dist > 0 && (
                         <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-yellow-200 bg-yellow-900/30 px-6 py-2 rounded-full border border-yellow-700/50 shadow-lg animate-fade-in">
                              <Info className="w-3 h-3 text-yellow-500" />
-                             <span>
-                                METAR Source: <span className="font-bold">{raw.weather_name} ({raw.weather_source})</span>
-                             </span>
+                             <span className="text-[10px] uppercase tracking-widest text-yellow-500 font-bold mr-1">METAR Source:</span>
+                             <span>{raw.weather_name} ({raw.weather_source})</span>
                              <span className="w-px h-3 bg-yellow-700/50 mx-1"></span>
-                             <span>Dist: {raw.weather_dist}nm</span>
+                             <span className="text-[10px] uppercase tracking-widest text-yellow-500 font-bold mr-1">Dist:</span>
+                             <span>{raw.weather_dist}nm</span>
                         </div>
                     )}
                 </div>

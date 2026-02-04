@@ -22,20 +22,35 @@ async def check_openai():
     return False
 
 async def run_probes():
-    """Runs periodically in background"""
-    while True:
-        await asyncio.sleep(60 * 15) # Check every 15 mins
+    """
+    Runs periodically in background.
+    - Health checks every 15 mins.
+    - Surgical Cache cleanup and Log pruning once per hour at :51.
+    """
+    import datetime
+    from app.core.cache import clear_expired_cache
 
-        try:
+    while True:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        # 1. SURGICAL CLEANUP
+        # Only run at :51 past the hour (after METARs typically update)
+        if now.minute == 59:
+            await clear_expired_cache()
             # Clean logs older than 90 days
-            await database.execute("DELETE FROM logs WHERE timestamp < NOW() - INTERVAL '90 days'")
-        except Exception as e:
-            print(f"CLEANUP ERROR: {e}")
-        
-        # Check FAA
-        if not await check_faa():
-            await notifier.send_alert("api_outage", "FAA API Down", "The AviationWeather API is failing to respond.")
-        
-        # Check OpenAI
-        if not await check_openai():
-            await notifier.send_alert("api_outage", "OpenAI API Down", "Cannot connect to OpenAI API.")
+            try:
+                await database.execute("DELETE FROM logs WHERE timestamp < NOW() - INTERVAL '90 days'")
+            except Exception as e:
+                print(f"LOG CLEANUP ERROR: {e}")
+
+        # 2. API HEALTH CHECKS
+        # Run every 15 minutes (0, 15, 30, 45)
+        if now.minute % 15 == 0:
+            if not await check_faa():
+                await notifier.send_alert("api_outage", "FAA API Down", "The AviationWeather API is failing to respond.")
+            
+            if not await check_openai():
+                await notifier.send_alert("api_outage", "OpenAI API Down", "Cannot connect to OpenAI API.")
+
+        # Sleep for 60 seconds to check again the next minute
+        await asyncio.sleep(60)

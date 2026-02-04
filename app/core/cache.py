@@ -55,7 +55,6 @@ async def save_cached_report(icao: str, plane_input: str, data: dict, ttl_second
     cache_key = f"{icao.upper()}_{category}"
     
     # Inject Expiration Stamp into the Data Blob
-    # This avoids needing a schema migration for a 'valid_until' column
     now = datetime.datetime.utcnow()
     valid_until = now + datetime.timedelta(seconds=ttl_seconds)
     data['valid_until'] = valid_until.timestamp()
@@ -76,3 +75,18 @@ async def save_cached_report(icao: str, plane_input: str, data: dict, ttl_second
     }
     
     await database.execute(query, values)
+
+async def clear_expired_cache():
+    """
+    Surgical cleanup of expired cache entries.
+    Deletes any row where the valid_until timestamp inside the JSON blob has passed.
+    """
+    now = datetime.datetime.utcnow().timestamp()
+    # Using PostgreSQL JSONB operators to find and delete expired items
+    query = "DELETE FROM flight_cache WHERE (data::jsonb->>'valid_until')::float < :now"
+    try:
+        count = await database.execute(query, values={"now": now})
+        if count:
+            print(f"🧹 CACHE CLEANUP: Removed {count} expired records.")
+    except Exception as e:
+        print(f"❌ CLEANUP ERROR: {e}")

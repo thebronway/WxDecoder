@@ -74,11 +74,9 @@ const AppContent = () => {
             </Link>
 
             {/* NAVIGATION MENU */}
-            <nav className="flex gap-2 md:gap-8 font-bold uppercase tracking-wide md:tracking-widest text-neutral-400 text-[9px] md:text-xs whitespace-nowrap">
-               <Link to="/" className="hover:text-white hover:text-blue-400 transition-colors">Home</Link>
-               <Link to="/report" className="hover:text-white hover:text-blue-400 transition-colors">Report</Link>
-               <Link to="/about" className="hover:text-white hover:text-blue-400 transition-colors">About</Link>
-               <Link to="/disclaimer" className="hover:text-white hover:text-blue-400 transition-colors">Disclaimer</Link>
+            <nav className="flex gap-6 md:gap-8 font-bold uppercase tracking-wide md:tracking-widest text-neutral-400 text-xs whitespace-nowrap">
+              <Link to="/" className="hover:text-white hover:text-blue-400 transition-colors">Home</Link>
+              <Link to="/about" className="hover:text-white hover:text-blue-400 transition-colors">About</Link>
             </nav>
             
           </div>
@@ -100,7 +98,6 @@ const AppContent = () => {
         {/* MAIN CONTENT */}
         <main className="flex-grow w-full p-4 md:p-6 relative z-0">
            <Routes>
-             {/* Pass setHasResults to Dashboard so it can tell us when to show the logo */}
              <Route path="/" element={<Dashboard onSearchStateChange={setHasResults} />} />
              <Route path="/about" element={<About />} />
              <Route path="/disclaimer" element={<Disclaimer />} />
@@ -120,7 +117,11 @@ const AppContent = () => {
 
         {/* FOOTER */}
         <footer className="w-full py-8 text-center border-t border-neutral-800 bg-black text-xs text-neutral-600 space-y-4 relative z-10">
-          <p>&copy; {new Date().getFullYear()} GoNoGo AI v0.57 • Built for Pilots • All rights reserved</p>
+          <div className="flex justify-center gap-6 mb-2">
+            <Link to="/report" className="hover:text-white transition-colors">Report an Issue</Link>
+            <Link to="/disclaimer" className="hover:text-white transition-colors">Terms and Conditions</Link>
+          </div>
+          <p>&copy; {new Date().getFullYear()} GoNoGo AI v0.58 • Built for Pilots • All rights reserved</p>
           <div className="flex flex-col items-center gap-2">
             <span className="text-neutral-500 italic">Help with server and API costs:</span>
             <a 
