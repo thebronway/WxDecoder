@@ -3,6 +3,7 @@ import datetime
 import os
 import secrets
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Security
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
@@ -188,7 +189,39 @@ async def unblock_client(data: UnblockRequest):
         
     return {"status": "success", "message": f"Unblocked {deleted_count} Redis keys."}
 
-# --- 4. SETTINGS & PROBES ---
+# --- 4. CACHE MANAGEMENT ---
+@router.get("/cache")
+async def get_cache_entries():
+    query = "SELECT key, icao, category, timestamp, data FROM flight_cache ORDER BY timestamp DESC"
+    rows = await database.fetch_all(query)
+    
+    results = []
+    for row in rows:
+        data_blob = json.loads(row['data'])
+        results.append({
+            "key": row['key'],
+            "icao": row['icao'],
+            "category": row['category'],
+            "timestamp": row['timestamp'],
+            "expires_at": datetime.datetime.fromtimestamp(data_blob.get('valid_until'), datetime.timezone.utc) if data_blob.get('valid_until') else None
+        })
+    return results
+
+class CacheClearRequest(BaseModel):
+    key: Optional[str] = None # If None, clear all
+
+@router.post("/cache/clear")
+async def clear_cache(data: CacheClearRequest):
+    if data.key:
+        query = "DELETE FROM flight_cache WHERE key = :key"
+        await database.execute(query, values={"key": data.key})
+        return {"status": "success", "message": f"Cleared cache for {data.key}"}
+    else:
+        query = "DELETE FROM flight_cache"
+        await database.execute(query)
+        return {"status": "success", "message": "Global cache flush successful."}
+
+# --- 5. SETTINGS & PROBES ---
 @router.get("/settings")
 async def get_all_settings():
     query_conf = "SELECT * FROM system_settings"

@@ -4,8 +4,8 @@ import { X, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
 const ReportModal = ({ isOpen, onClose, contextData = null }) => {
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
-  const [faxNumber, setFaxNumber] = useState(""); // Honeypot
-  const [status, setStatus] = useState("idle"); // idle, sending, success, error
+  const [phone, setPhone] = useState(""); 
+  const [status, setStatus] = useState("idle");
 
   if (!isOpen) return null;
 
@@ -17,7 +17,7 @@ const ReportModal = ({ isOpen, onClose, contextData = null }) => {
       const payload = {
         message,
         email,
-        fax_number: faxNumber, // If bot fills this, backend rejects it
+        phone,
         context: contextData
       };
 
@@ -101,9 +101,9 @@ const ReportModal = ({ isOpen, onClose, contextData = null }) => {
                     />
                 </div>
 
-                {/* HONEYPOT (Hidden) */}
+                {/* Secondary Validation */}
                 <div className="hidden">
-                    <input type="text" name="fax_number" value={faxNumber} onChange={e => setFaxNumber(e.target.value)} tabIndex="-1" autoComplete="off" />
+                    <input type="text" name="phone" value={phone} onChange={e => setPhone(e.target.value)} tabIndex="-1" autoComplete="off" />
                 </div>
 
                 {/* Actions */}

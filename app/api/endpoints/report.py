@@ -11,18 +11,18 @@ class ReportRequest(BaseModel):
     message: str
     email: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
-    # Honeypot: If this is filled, it's a bot.
-    fax_number: Optional[str] = None
+    # Secondary validation field
+    phone: Optional[str] = None
 
 @router.post("/report")
 async def submit_report(data: ReportRequest, request: Request, background_tasks: BackgroundTasks):
     # 1. Rate Limit (Prevent spam floods)
     await limiter(request)
 
-    # 2. Honeypot Check (Silent Fail for Bots)
-    if data.fax_number:
-        print(f"DEBUG: Bot detected via honeypot from {request.client.host}")
-        return {"status": "success"} 
+    # 2. Validation Check (Silent Fail for Bots)
+    if data.phone:
+        print(f"DEBUG: Bot detected via hidden field from {request.client.host}")
+        return {"status": "success"}
 
     # 3. Format the Notification
     lines = [f"📢 **User Report**"]
