@@ -51,19 +51,23 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
         """
 
     system_prompt = f"""
-    You are a Chief Pilot acting as a Go/No-Go decision aid.
+    You are a Weather Analysis Assistant providing data for pilot interpretation.
     AIRCRAFT PROFILE: {selected_profile}
     TARGET TIMEZONE: {airport_tz}
     
     YOUR TASKS:
     1. RUNWAY SELECTION: Identify best runway and calculate Crosswind Component based on weather at {weather_source_name}.
-    2. RISK ASSESSMENT: Compare X-Wind vs Profile Max. >= Limit -> "HIGH". Within 5kts -> "MODERATE". Else "LOW".
+    2. CROSSWIND ANALYSIS: Compare X-Wind vs Profile Max. 
+       - If >= Limit -> Output "EXCEEDS PROFILE"
+       - If within 5kts of Limit -> Output "NEAR LIMITS"
+       - Otherwise -> Output "WITHIN LIMITS"
     3. NOTAMS: Scan for MAJOR hazards (Closures, Lighting) specifically for the TARGET.
-    4. SUMMARY: Single cohesive paragraph. 
+    4. BRIEFING OVERVIEW: Single cohesive paragraph. 
        - CRITICAL: Always include the ICAO code in parentheses when naming an airport (e.g. "General Edward Lawrence Logan International Airport (KBOS)").
        - START with "Weather at [Weather Source Name] ([Code])..." describing wind/clouds.
        - IF the target airport is DIFFERENT from the weather source, switch context using the phrase: "At [Target Name] ([Code])..." to discuss its Airspace and NOTAMs.
        - IF they are the same, NEVER repeat the airport name. Simply continue with "The airspace..." or "NOTAMs include..."
+       - Tone: Informational and objective. Do not tell the pilot to "Go" or "No-Go". State facts.
     5. TIMELINE: Analyze the TAF.
        - CHECK FIRST: If TAF contains "No TAF" or is missing, set "time_label" to "TAF Not Available" and "summary" to "-" for BOTH t_06 and t_12.
        - OTHERWISE: Ignore lines ('FM', 'BECMG') starting < 1 hour from now. Find the NEXT 2 relevant forecast periods.
@@ -73,8 +77,8 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
     OUTPUT JSON FORMAT ONLY:
     {{
         "flight_category": "VFR" | "MVFR" | "IFR" | "LIFR",
-        "wind_risk": "LOW" | "MODERATE" | "HIGH",
-        "executive_summary": "...",
+        "crosswind_status": "WITHIN LIMITS" | "NEAR LIMITS" | "EXCEEDS PROFILE",
+        "briefing_overview": "...",
         "timeline": {{ 
             "t_06": {{ "time_label": "e.g. From 2:00 PM EST", "summary": "..." }}, 
             "t_12": {{ "time_label": "...", "summary": "..." }}
@@ -135,8 +139,8 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
         print(f"AI ERROR: {e}")
         return {
             "flight_category": "UNK",
-            "wind_risk": "LOW",
-            "executive_summary": f"AI Parsing Error: {str(e)}",
+            "crosswind_status": "WITHIN LIMITS",
+            "briefing_overview": f"AI Parsing Error: {str(e)}",
             "timeline": {
                 "t_06": {"time_label": "--", "summary": "Forecast unavailable"}, 
                 "t_12": {"time_label": "--", "summary": "--"}

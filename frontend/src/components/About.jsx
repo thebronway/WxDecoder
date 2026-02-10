@@ -5,14 +5,14 @@ const About = () => {
   return (
     <div className="max-w-3xl mx-auto text-gray-300 space-y-8 pt-10 px-4">
       <SEO 
-        title="About - GoNoGo AI"
-        description="Learn about the mission behind GoNoGo AI: A tool built by pilots to modernize preflight weather briefings."
+        title="About - WxDecoder"
+        description="Learn about the mission behind WxDecoder: A tool built by pilots to modernize preflight weather briefings."
         path="/about"
       />
       
       {/* HEADER */}
       <div className="space-y-2 border-b border-neutral-800 pb-6">
-        <h1 className="text-3xl font-bold text-white tracking-tight">About GoNoGo AI</h1>
+        <h1 className="text-3xl font-bold text-white tracking-tight">About WxDecoder</h1>
         <p className="text-lg text-blue-400 font-medium">
           Decoding Weather, Airspace, and NOTAMs for the Modern Pilot
         </p>
@@ -21,7 +21,7 @@ const About = () => {
       {/* MAIN STORY */}
       <div className="space-y-4 leading-relaxed text-gray-300">
         <p>
-          GoNoGo AI was built to solve a friction point in aviation: raw data is reliable, but parsing it is tedious and feels archaic.
+          WxDecoder was built to solve a friction point in aviation: raw data is reliable, but parsing it is tedious and feels archaic.
         </p>
         <p>
           By combining live FAA weather and NOTAM data with OpenAI's natural language processing, this tool acts as a 
@@ -38,7 +38,7 @@ const About = () => {
         </p>
         <ul className="list-disc list-inside space-y-3 text-sm md:text-base">
           <li>
-            <strong className="text-gray-100">Decode Raw Data:</strong> Take METARs, TAFs and NOTAMs and decode into an executive summary.
+            <strong className="text-gray-100">Decode Raw Data:</strong> Take METARs, TAFs and NOTAMs and decode into a briefing overview.
           </li>
           <li>
             <strong className="text-gray-100">Trust but Verify:</strong> Display raw FAA data side-by-side with the AI summary for verification.

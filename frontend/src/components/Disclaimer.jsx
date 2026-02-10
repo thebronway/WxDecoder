@@ -6,8 +6,8 @@ const Disclaimer = () => {
   return (
     <div className="max-w-3xl mx-auto text-gray-300 space-y-8 pt-10 px-4 pb-20">
       <SEO 
-        title="Disclaimer - GoNoGo AI"
-        description="Important legal disclaimer and operational limitations for using GoNoGo AI. Not a substitute for official briefings."
+        title="Disclaimer - WxDecoder"
+        description="Important legal disclaimer and operational limitations for using WxDecoder. Not a substitute for official briefings."
         path="/disclaimer"
       />
       
@@ -30,7 +30,7 @@ const Disclaimer = () => {
           Critical Safety Warning
         </h2>
         <p className="text-gray-300 leading-relaxed">
-          <strong>GoNoGo AI is for educational and situational awareness purposes only.</strong> It is 
+          <strong>WxDecoder is for educational and situational awareness purposes only.</strong> It is
           <span className="text-white font-bold underline decoration-orange-500 decoration-2 underline-offset-2 ml-1">
              NOT a substitute for an official weather briefing
           </span>. 
@@ -46,7 +46,7 @@ const Disclaimer = () => {
         </h2>
         <div className="space-y-4 text-sm md:text-base text-gray-300">
           <p>
-            To maintain service sustainability and manage API costs, GoNoGo AI utilizes a <strong>Smart Caching System</strong>.
+            To maintain service sustainability and manage API costs, WxDecoder utilizes a <strong>Smart Caching System</strong>.
           </p>
           <ul className="list-disc list-inside space-y-2 ml-2">
             <li>
@@ -88,7 +88,7 @@ const Disclaimer = () => {
           </h3>
           <ul className="list-disc list-inside space-y-2 text-sm text-neutral-400">
             <li>
-              <strong className="text-neutral-200">Uptime:</strong> We rely on third-party APIs (FAA & OpenAI). If these services are slow or down, GoNoGo AI may be unavailable.
+              <strong className="text-neutral-200">Uptime:</strong> We rely on third-party APIs (FAA & OpenAI). If these services are slow or down, WxDecoder may be unavailable.
             </li>
             <li>
               <strong className="text-neutral-200">No Warranty:</strong> This service is provided as a free tool for the community. We do not guarantee 100% uptime or data accuracy.

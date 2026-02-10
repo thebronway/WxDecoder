@@ -13,10 +13,16 @@ const Bubble = ({ label, value, highlight, risk }) => {
 
   // Logic for Risk Levels (Specifically for Wind)
   if (risk) {
-    if (risk === "HIGH") {
-        colorClass = "bg-red-600/20 border-red-500 animate-pulse"; // Red for Danger
-    } else if (risk === "MODERATE") {
-        colorClass = "bg-yellow-600/20 border-yellow-500"; // Yellow for Caution
+    const isRed = risk === "EXCEEDS PROFILE" || risk === "HIGH";
+    const isYellow = risk === "NEAR LIMITS" || risk === "MODERATE";
+    
+    if (isRed) {
+        colorClass = "bg-red-600/20 border-red-500 animate-pulse"; 
+    } else if (isYellow) {
+        colorClass = "bg-yellow-600/20 border-yellow-500"; 
+    } else {
+        // "WITHIN LIMITS" or "LOW"
+        colorClass = "bg-green-900/20 border-green-800";
     }
   }
 

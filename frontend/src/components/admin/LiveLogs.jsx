@@ -43,6 +43,15 @@ const LiveLogs = () => {
     }
   };
 
+  const formatDate = (isoString) => {
+    if (!isoString) return "-";
+    try {
+        return new Date(isoString).toLocaleDateString('en-US', { timeZone: tz });
+    } catch (e) {
+        return new Date(isoString).toLocaleDateString();
+    }
+  };
+
   const getStatusColor = (status) => {
     if (status === "CACHE_HIT") return "text-purple-400";
     if (status === "SUCCESS") return "text-green-400";
@@ -87,6 +96,7 @@ const LiveLogs = () => {
         <table className="w-full text-left whitespace-nowrap text-xs">
             <thead className="bg-neutral-800 text-neutral-400 sticky top-0 uppercase tracking-wider">
             <tr>
+                <th className="p-3">Date</th>
                 <th className="p-3">Time</th>
                 <th className="p-3">Client</th>
                 <th className="p-3">IP</th>
@@ -100,11 +110,12 @@ const LiveLogs = () => {
             </thead>
             <tbody className="divide-y divide-neutral-800 text-neutral-300 font-mono">
             {loading ? (
-                <tr><td colSpan="9" className="p-8 text-center text-blue-500 animate-pulse">LOADING LOGS...</td></tr>
+                <tr><td colSpan="10" className="p-8 text-center text-blue-500 animate-pulse">LOADING LOGS...</td></tr>
             ) : filteredLogs.length === 0 ? (
-                <tr><td colSpan="9" className="p-8 text-center text-neutral-500">No logs found.</td></tr>
+                <tr><td colSpan="10" className="p-8 text-center text-neutral-500">No logs found.</td></tr>
             ) : filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-neutral-800 transition-colors group">
+                    <td className="p-3 text-neutral-500">{formatDate(log.timestamp)}</td>
                     <td className="p-3 text-neutral-500">{formatTime(log.timestamp)}</td>
                     <td className="p-3 text-purple-300">
                             {log.client_id && log.client_id !== "UNKNOWN" ? (

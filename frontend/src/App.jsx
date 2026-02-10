@@ -47,8 +47,7 @@ const AppContent = () => {
 
   // --- LOGO VISIBILITY LOGIC ---
   const isHomePage = location.pathname === '/';
-  // Show logo if: We are NOT on home page OR we scrolled OR we have search results
-  const showLogo = !isHomePage || isScrolled || hasResults;
+  const showLogo = true;
 
   return (
       <div className="flex flex-col min-h-screen bg-neutral-900 text-gray-200 font-sans">
@@ -61,7 +60,7 @@ const AppContent = () => {
                 : 'bg-transparent py-4 md:py-8 border-transparent'
           }`}
         >
-          <div className="max-w-5xl mx-auto px-4 md:px-6 flex flex-row justify-between items-center h-10 md:h-12">
+          <div className="max-w-5xl mx-auto px-4 md:px-6 flex flex-row justify-between items-center h-16 md:h-24">
             
             {/* LOGO AREA */}
             <Link 
@@ -70,7 +69,7 @@ const AppContent = () => {
                     showLogo ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
                 }`}
             >
-               <img src="/logo-flat.webp" alt="GoNoGo Logo" className="h-8 md:h-10 w-auto object-contain" />
+               <img src="/logo.webp" alt="WxDecoder Logo" className="h-14 md:h-20 w-auto object-contain" />
             </Link>
 
             {/* NAVIGATION MENU */}
@@ -119,9 +118,9 @@ const AppContent = () => {
         <footer className="w-full py-8 text-center border-t border-neutral-800 bg-black text-xs text-neutral-600 space-y-4 relative z-10">
           <div className="flex justify-center gap-6 mb-2">
             <Link to="/report" className="hover:text-white transition-colors">Report an Issue</Link>
-            <Link to="/disclaimer" className="hover:text-white transition-colors">Terms and Conditions</Link>
+            <Link to="/disclaimer" className="hover:text-white transition-colors">Terms Of Use & Disclaimer</Link>
           </div>
-          <p>&copy; {new Date().getFullYear()} GoNoGo AI v0.58 • Built for Pilots • All rights reserved</p>
+          <p>&copy; {new Date().getFullYear()} WxDecoder v0.60 • Built for Pilots • All rights reserved</p>
           <div className="flex flex-col items-center gap-2">
             <span className="text-neutral-500 italic">Help with server and API costs:</span>
             <a 

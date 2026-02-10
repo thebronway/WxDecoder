@@ -128,24 +128,14 @@ const Dashboard = ({ onSearchStateChange }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12 pt-4">
       <SEO 
-        title="GoNoGo AI - Pilot Weather & NOTAM Decoder"
-        description="Instant plain-English risk assessments for pilots. Decode METARs, TAFs, and NOTAMs with AI. Free flight planning tool."
+        title="WxDecoder - Aviation Weather Analysis"
+        description="Instant plain-English weather analysis for pilots. Decode METARs, TAFs, and NOTAMs with AI. Free flight planning tool."
         path="/"
       />
-
-      {!data && (
-        <div className="flex justify-center mb-6 animate-fade-in">
-           <img 
-             src="/logo-square.webp" 
-             alt="GoNoGo Hero" 
-             className="w-40 h-40 md:w-56 md:h-56 rounded-xl shadow-2xl hover:scale-[1.02] transition-transform duration-500"
-           />
-        </div>
-      )}
       
       <div className="text-center space-y-4 mb-8">
         <h2 className="text-xl md:text-2xl font-light text-blue-200 tracking-tight">
-          A Preflight App for Pilots to Decode Weather, Airspace and NOTAMs
+          A Situational Awareness Tool for Pilots to Decode Weather & NOTAMs
         </h2>
         <div className="h-px bg-gradient-to-r from-transparent via-neutral-800 to-transparent w-full my-6"></div>
         <p className="text-neutral-400 text-sm max-w-2xl mx-auto leading-relaxed">
@@ -261,10 +251,10 @@ const Dashboard = ({ onSearchStateChange }) => {
 
           <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-6 shadow-xl relative">
             <div className="flex justify-between items-start mb-3">
-                 <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Mission Summary</h3>
+                 <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Briefing Overview</h3>
                  <ReportButton />
             </div>
-            <p className="text-gray-200 leading-relaxed text-base">{analysis.executive_summary}</p>
+            <p className="text-gray-200 leading-relaxed text-base">{analysis.briefing_overview || analysis.executive_summary}</p>
           </div>
 
           {/* TIMELINE CARDS (Human Readable) */}
@@ -295,7 +285,7 @@ const Dashboard = ({ onSearchStateChange }) => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Bubble label="CATEGORY" value={analysis.flight_category} highlight={true} />
-            <Bubble label="WIND" value={bubbles?.wind || "--"} risk={analysis.wind_risk} />
+            <Bubble label="CROSSWIND" value={bubbles?.wind || "--"} risk={analysis.crosswind_status || analysis.wind_risk} />
             <Bubble label="CEILING" value={bubbles?.ceiling || "--"} />
             <Bubble label="VISIBILITY" value={bubbles?.visibility || "--"} />
           </div>
@@ -375,7 +365,7 @@ const Dashboard = ({ onSearchStateChange }) => {
             metar: raw.metar,
             taf: raw.taf,
             raw_notams: raw.notams,
-            summary: analysis.executive_summary,
+            summary: analysis.briefing_overview || analysis.executive_summary,
             airspace_analysis: analysis.airspace_warnings,
             notam_analysis: analysis.critical_notams,
             timeline: analysis.timeline
