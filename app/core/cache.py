@@ -79,14 +79,21 @@ async def save_cached_report(icao: str, plane_input: str, data: dict, ttl_second
 async def clear_expired_cache():
     """
     Surgical cleanup of expired cache entries.
-    Deletes any row where the valid_until timestamp inside the JSON blob has passed.
+    1. Deletes rows where 'valid_until' in JSON has passed.
+    2. Deletes ANY row older than 24 hours (Hard Cleanup).
     """
     now = datetime.datetime.utcnow().timestamp()
-    # Using PostgreSQL JSONB operators to find and delete expired items
-    query = "DELETE FROM flight_cache WHERE (data::jsonb->>'valid_until')::float < :now"
+    
+    # CHANGED: Added OR condition to force delete anything older than 24 hours
+    query = """
+        DELETE FROM flight_cache 
+        WHERE (data::jsonb->>'valid_until')::float < :now
+        OR timestamp < NOW() - INTERVAL '24 hours'
+    """
+    
     try:
         count = await database.execute(query, values={"now": now})
         if count:
-            print(f"🧹 CACHE CLEANUP: Removed {count} expired records.")
+            print(f"🧹 CACHE CLEANUP: Removed {count} expired/old records.")
     except Exception as e:
         print(f"❌ CLEANUP ERROR: {e}")

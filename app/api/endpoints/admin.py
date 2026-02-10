@@ -198,11 +198,17 @@ async def get_cache_entries():
     results = []
     for row in rows:
         data_blob = json.loads(row['data'])
+        
+        # We explicitly set the timezone to UTC so the frontend converts it correctly.
+        stored_time = row['timestamp']
+        if stored_time and stored_time.tzinfo is None:
+            stored_time = stored_time.replace(tzinfo=datetime.timezone.utc)
+
         results.append({
             "key": row['key'],
             "icao": row['icao'],
             "category": row['category'],
-            "timestamp": row['timestamp'],
+            "timestamp": stored_time, # <--- Used to be just row['timestamp']
             "expires_at": datetime.datetime.fromtimestamp(data_blob.get('valid_until'), datetime.timezone.utc) if data_blob.get('valid_until') else None
         })
     return results

@@ -108,6 +108,12 @@ const Dashboard = ({ onSearchStateChange }) => {
     if (onSearchStateChange) onSearchStateChange(false);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleAnalyze();
+    }
+  };
+
   const analysis = data?.analysis || {};
   const timeline = analysis.timeline || {};
   const bubbles = analysis.bubbles || {};
@@ -148,6 +154,7 @@ const Dashboard = ({ onSearchStateChange }) => {
         <input 
           value={icao} 
           onChange={(e) => setIcao(e.target.value.toUpperCase())}
+          onKeyDown={handleKeyDown}
           placeholder="SEARCH..." 
           disabled={data || loading} 
           className="flex-1 bg-neutral-800 border border-neutral-700 text-white text-center font-bold rounded-lg uppercase focus:outline-none focus:border-blue-500 transition-colors p-3 md:p-0 h-12 md:h-full disabled:opacity-50 disabled:cursor-not-allowed"
@@ -157,6 +164,7 @@ const Dashboard = ({ onSearchStateChange }) => {
             <select 
                 value={plane} 
                 onChange={(e) => setPlane(e.target.value)}
+                onKeyDown={handleKeyDown}
                 disabled={data || loading}
                 className="w-full h-full bg-neutral-800 border border-neutral-700 text-white rounded-lg pl-4 pr-12 focus:outline-none focus:border-blue-500 cursor-pointer appearance-none disabled:opacity-50 disabled:cursor-not-allowed text-ellipsis overflow-hidden whitespace-nowrap"
             >
