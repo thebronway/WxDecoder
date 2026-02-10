@@ -2,6 +2,7 @@ import time
 import datetime
 import asyncio
 import re
+import logging
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
@@ -85,8 +86,9 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
     weather_name = None 
     expiration_dt = None
 
-    t_weather = 0
+    t_wx_fetch = 0
     t_notams = 0
+    t_alt = 0
     t_ai = 0
 
     try:
@@ -128,16 +130,18 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
                 airspace_warnings = check_airspace_zones(input_icao, lat, lon)
             except Exception: pass
 
-        t0_data = time.time()
-        
-        # --- PARALLEL FETCH ---
-        weather_task = get_metar_taf(input_icao)
-        notams_task = get_notams(input_icao)
-        
-        weather_data, notams = await asyncio.gather(weather_task, notams_task)
-        
-        t_initial_fetch = time.time() - t0_data
-        t_notams = t_initial_fetch 
+        # --- PARALLEL FETCH (TIMED) ---
+        async def fetch_wx():
+            t = time.time()
+            data = await get_metar_taf(input_icao)
+            return data, time.time() - t
+
+        async def fetch_notams():
+            t = time.time()
+            data = await get_notams(input_icao)
+            return data, time.time() - t
+
+        (weather_data, t_wx_fetch), (notams, t_notams) = await asyncio.gather(fetch_wx(), fetch_notams())
         
         if weather_data:
             weather_icao = input_icao
@@ -145,6 +149,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         
         # Weather Fallback Logic
         if not weather_data:
+            t0_alt = time.time()
             candidates = await get_nearest_reporting_stations(input_icao)
             for station, dist in candidates:
                 data = await get_metar_taf(station)
@@ -159,8 +164,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
                     else:
                         weather_name = station
                     break
-        
-        t_weather = time.time() - t0_data
+            t_alt = time.time() - t0_alt
         
         if not weather_data:
             weather_data = {"metar": None, "taf": None}
@@ -248,13 +252,23 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
     finally:
         if status != "CACHE_HIT":
             duration = time.time() - t_start
-            print(f"⏱️  PERFORMANCE: {input_icao} | Total: {duration:.2f}s | Wx: {t_weather:.2f}s")
+            
+            perf_msg = f"⏱️  PERFORMANCE: {input_icao} | Total: {duration:.2f}s | Wx: {t_wx_fetch:.2f}s"
+            if t_alt > 0:
+                perf_msg += f" | Alt: {t_alt:.2f}s"
+            perf_msg += f" | NOTAMs: {t_notams:.2f}s | AI: {t_ai:.2f}s"
+
+            logging.getLogger("app.api.endpoints.analysis").info(perf_msg)
             
             output_for_log = resolved_icao
             if resolved_icao == ("K" + raw_input) and any(char.isdigit() for char in raw_input):
                 output_for_log = raw_input
 
-            await log_attempt(client_id, client_ip, raw_input, output_for_log, request.plane_size, duration, status, error_msg, model_used, tokens_used, weather_icao, expiration_dt)
+            await log_attempt(
+                client_id, client_ip, raw_input, output_for_log, request.plane_size, 
+                duration, status, error_msg, model_used, tokens_used, weather_icao, expiration_dt,
+                t_wx=t_wx_fetch, t_notams=t_notams, t_ai=t_ai, t_alt=t_alt
+            )
 
 # --- STATUS ENDPOINT ---
 @router.get("/system-status")

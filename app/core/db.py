@@ -1,6 +1,10 @@
 import os
+import logging
 import redis.asyncio as redis
 from databases import Database
+
+# Configure Logger
+logger = logging.getLogger(__name__)
 
 # 1. DATABASE CONNECTION
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -12,7 +16,7 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 async def init_db_tables():
     """
-    Creates tables if they don't exist.
+    Creates tables if they don't exist and adds performance indices.
     """
     query_logs = """
     CREATE TABLE IF NOT EXISTS logs (
@@ -64,15 +68,19 @@ async def init_db_tables():
             await database.execute(query_settings)
             await database.execute(query_notif)
             
-            # --- MIGRATION: Add new columns for Enhanced Logging ---
-            # We use 'ADD COLUMN IF NOT EXISTS' which is valid in Postgres
+            await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp)")
+            await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_id ON logs(client_id)")
+            await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_input_icao ON logs(input_icao)")
+
             try:
                 await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS weather_icao TEXT")
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS expiration_timestamp TIMESTAMP")
+                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS expiration_timestamp TIMESTAMP")                
+                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_wx REAL")
+                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_notams REAL")
+                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_ai REAL")
+                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_alt REAL")
             except Exception as ex:
-                print(f"DEBUG: Schema migration warning: {ex}")
+                logger.warning(f"Schema migration warning: {ex}")
 
     except Exception as e:
-        # Ignore race conditions during startup (UniqueViolationError)
-        # One worker will succeed, the others will fail harmlessly.
-        print(f"DEBUG: DB Init skipped or failed (likely race condition): {e}")
+        logger.info(f"DB Init skipped or failed (likely race condition): {e}")

@@ -145,8 +145,8 @@ const Dashboard = ({ onSearchStateChange }) => {
         </h2>
         <div className="h-px bg-gradient-to-r from-transparent via-neutral-800 to-transparent w-full my-6"></div>
         <p className="text-neutral-400 text-sm max-w-2xl mx-auto leading-relaxed">
-          Enter an Airport ICAO code (e.g. <strong className="text-white">KBOS</strong>) or LID code (e.g. <strong className="text-white">2W5</strong>) 
-          <br />and select your aircraft profile (crosswind tolerance) below.
+          Enter an Airport ICAO code (e.g. <strong className="text-white">KBOS</strong>) or LID code (e.g. <strong className="text-white">2W5</strong>) and select a crosswind tolerance below.
+          <br />Searches may take up to 30 seconds.
         </p>
       </div>
 
@@ -265,12 +265,11 @@ const Dashboard = ({ onSearchStateChange }) => {
             
             <div className="text-gray-200 leading-relaxed text-base">
                 {(analysis.briefing_overview || analysis.executive_summary || "").split('\n').map((line, i) => {
-                    // 1. Check if the line is a Header (e.g. "**WEATHER**")
-                    const headerMatch = line.trim().match(/^\*\*(.*?)\*\*$/);
+                    const headerMatch = line.trim().match(/^\*\*\s*(.*?)\s*\*\*[:\s]*$/);
+                    
                     if (headerMatch) {
-                        let headerText = headerMatch[1];
+                        let headerText = headerMatch[1].toUpperCase().trim();
                         
-                        // Logic: Handle Different Weather Source Display
                         const target = icao ? icao.toUpperCase() : "";
                         const source = raw.weather_source ? raw.weather_source.toUpperCase() : "";
                         const isDifferent = source && target && source !== target && source !== "K" + target;

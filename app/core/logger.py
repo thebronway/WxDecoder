@@ -1,16 +1,21 @@
 import datetime
+import logging
 from app.core.db import database
 
-async def log_attempt(client_id, ip, input_icao, resolved_icao, plane, duration, status, error_msg=None, model=None, tokens=0, weather_icao=None, expiration=None):
+logger = logging.getLogger(__name__)
+
+async def log_attempt(client_id, ip, input_icao, resolved_icao, plane, duration, status, error_msg=None, model=None, tokens=0, weather_icao=None, expiration=None, t_wx=0, t_notams=0, t_ai=0, t_alt=0):
     query = """
         INSERT INTO logs (
             timestamp, client_id, ip_address, input_icao, resolved_icao, 
             plane_profile, duration_seconds, status, error_message,
-            model_used, tokens_used, weather_icao, expiration_timestamp
+            model_used, tokens_used, weather_icao, expiration_timestamp,
+            duration_wx, duration_notams, duration_ai, duration_alt
         ) VALUES (
             :timestamp, :client_id, :ip_address, :input_icao, :resolved_icao, 
             :plane_profile, :duration_seconds, :status, :error_message, 
-            :model_used, :tokens_used, :weather_icao, :expiration_timestamp
+            :model_used, :tokens_used, :weather_icao, :expiration_timestamp,
+            :t_wx, :t_notams, :t_ai, :t_alt
         )
     """
     
@@ -38,11 +43,16 @@ async def log_attempt(client_id, ip, input_icao, resolved_icao, plane, duration,
         "model_used": model,
         "tokens_used": tokens,
         "weather_icao": weather_icao,
-        "expiration_timestamp": exp_naive
+        "expiration_timestamp": exp_naive,
+        "t_wx": t_wx,
+        "t_notams": t_notams,
+        "t_ai": t_ai,
+        "t_alt": t_alt
     }
 
     try:
         await database.execute(query=query, values=values)
-        print(f"📝 LOGGED: {input_icao} | {status}") # Verification print
+        # Use logger but KEEP the exact emoji format
+        logger.info(f"📝 LOGGED: {input_icao} | {status}") 
     except Exception as e:
-        print(f"❌ LOGGING FAILURE: {e}")
+        logger.error(f"❌ LOGGING FAILURE: {e}")

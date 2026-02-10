@@ -1,5 +1,6 @@
 import os
-import asyncio  # <--- ADDED: Required for background tasks
+import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -10,29 +11,37 @@ from app.core.db import database, init_db_tables
 from app.core.settings import settings
 from app.core.probes import run_probes
 
+# --- LOGGING CONFIGURATION ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("uvicorn.startup")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    print("DEBUG: Connecting to Database and Cache...")
+    logger.info("Connecting to Database and Cache...")
     await database.connect()
     
     # 1. Create Tables (Prevent Race Condition with try/except)
     try:
         await init_db_tables()
     except Exception as e:
-        print(f"DEBUG: Table init skipped (Race Condition): {e}")
+        logger.warning(f"Table init skipped (Race Condition): {e}")
 
     # 2. Load Settings
-    print("DEBUG: Loading System Settings...")
+    logger.info("Loading System Settings...")
     await settings.load()
     
     # 3. Start Background Probes (OpenAI/FAA Health Checks)
-    asyncio.create_task(run_probes())  # <--- ADDED: Starts the infinite loop
+    asyncio.create_task(run_probes())
     
-    print("DEBUG: Systems Online.")
+    logger.info("Systems Online.")
     yield
     # SHUTDOWN
-    print("DEBUG: Disconnecting...")
+    logger.info("Disconnecting...")
     await database.disconnect()
 
 app = FastAPI(lifespan=lifespan)

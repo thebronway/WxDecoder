@@ -105,7 +105,11 @@ const LiveLogs = () => {
                 <th className="p-3">Output</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Expire</th>
-                <th className="p-3 text-right">Latency</th>
+                <th className="p-3 text-right">Total</th>
+                <th className="p-3 text-right text-blue-400">Wx</th>
+                <th className="p-3 text-right text-yellow-400">Notam</th>
+                <th className="p-3 text-right text-purple-400">AI</th>
+                <th className="p-3 text-right text-gray-500">Alt</th>
             </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800 text-neutral-300 font-mono">
@@ -133,7 +137,12 @@ const LiveLogs = () => {
                     <td className="p-3 text-neutral-500">
                         {log.expiration_timestamp ? formatTime(log.expiration_timestamp) : "-"}
                     </td>
-                    <td className="p-3 text-right text-neutral-500">{log.duration_seconds?.toFixed(3)}s</td>
+                    
+                    <td className="p-3 text-right font-bold text-white">{log.duration_seconds?.toFixed(2)}s</td>
+                    <td className="p-3 text-right text-blue-400/70">{log.duration_wx ? log.duration_wx.toFixed(2) : "-"}</td>
+                    <td className="p-3 text-right text-yellow-400/70">{log.duration_notams ? log.duration_notams.toFixed(2) : "-"}</td>
+                    <td className="p-3 text-right text-purple-400/70">{log.duration_ai ? log.duration_ai.toFixed(2) : "-"}</td>
+                    <td className="p-3 text-right text-gray-600">{log.duration_alt > 0 ? log.duration_alt.toFixed(2) : "-"}</td>
                 </tr>
             ))}
             </tbody>
