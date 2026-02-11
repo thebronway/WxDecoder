@@ -4,6 +4,7 @@ import re
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from app.core.settings import settings
+from app.core.physics import calculate_crosswind
 
 load_dotenv()
 
@@ -95,11 +96,11 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
        - TRANSLATION RULE: NEVER use raw METAR codes in this text. Translate them (e.g., "Winds are calm").
        - GRAMMAR: Do NOT use the word "The" before an airport name.
        
-    3. CROSSWIND SUMMARY ("summary_crosswind"):
-       - GUST MANDATE: If the METAR includes a gust (e.g., G25), you MUST use that peak gust value for all crosswind calculations and safety comparisons.
-       - CONTENT: Identify the best runway. State the calculated crosswind component using the peak gust if available.
-       - PHRASING: "Calculated crosswind component (including gusts) is X knots for Runway [ID]. This is [within / near / exceeds] the selected profile limit of Y knots."
-       - STRICT PROHIBITION: DO NOT use the words "safe", "safety", "dangerous", or "operation".
+    3. CROSSWIND DATA EXTRACTION:
+       - IDENTIFY: Find the best runway for the current wind.
+       - GUST MANDATE: Always use the peak gust for safety calculations.
+       - RAW DATA: Provide the raw runway heading (e.g., 220 for 22R) and the peak wind speed.
+       - PHRASING: The "summary_crosswind" text should explain the logic (e.g., "Using Runway 22R with an offset of 30 degrees...").
 
     4. AIRSPACE SUMMARY ("summary_airspace"):
        - CONTENT: Summarize the provided "AIRSPACE STATUS" block.
@@ -110,9 +111,14 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
        - FORMAT: Provide a single, cohesive paragraph summarizing the key hazards. Do NOT use bullet points in this text section.
 
     6. BUBBLES (UI DATA):
-       - "wind": Short format including peak gusts (e.g., "North 10G20kts").
-       - "x_wind": The calculated crosswind component using peak gusts ONLY (e.g., "12kts").
-       - "rwy": The best runway identifier ONLY (e.g., "30" or "04L").
+       - "wind": 
+         - **STRICT FORMAT RULE**: If winds are 00000KT, you MUST return exactly "Winds Calm".
+         - **STRICT FORMAT RULE**: For all other conditions, use the format "DDD° SSkts" (e.g., "050° 16kts"). DDD must be the 3-digit numeric heading.
+         - **GUST RULE**: If gusts are present, append " | Gust SSkts" (e.g., "050° 16kts | Gust 22kts"). Use the pipe symbol as a separator.
+         - **VARIABLE WINDS**: If direction is variable (VRB), use "VRB SSkts" (e.g., "VRB 04kts").
+       - "x_wind": Return ONLY the raw peak wind speed as an integer (e.g., 22).
+       - "rwy_heading": Return ONLY the 3-digit numeric heading of the best runway (e.g., 220).
+       - "rwy": The runway name (e.g., "22R")
        - "visibility": CRITICAL: Use standard aviation fractions (e.g., "1 3/4 SM"). NEVER use decimals.
        - "ceiling": 
          - **STRICT LONGFORM RULE**: You MUST spell out full words (e.g., "Broken", "Overcast") and include "FT AGL" for ALL BKN or OVC layers.
@@ -122,6 +128,11 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
            - METAR BKN020 OVC038: "Broken 2000 FT AGL\nOvercast 3800 FT AGL"
            - METAR CLR: "Clear"
          - Heights are always AGL (Above Ground Level).
+
+       - **RAW MATH DATA (MANDATORY)**:
+         - "rwy_heading_raw": Integer heading of the chosen runway (e.g., 220).
+         - "wind_dir_raw": Integer heading of the wind (e.g., 50).
+         - "wind_speed_raw": Integer of the PEAK wind or peak gust speed (e.g., 22).
     
     7. JSON ARRAYS:
        - "airspace_warnings": ONLY include actual warnings. If the status is "No intersection...", return an EMPTY LIST [].
@@ -143,6 +154,9 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
             "wind": "...", 
             "x_wind": "...",
             "rwy": "...",
+            "rwy_heading_raw": 0,
+            "wind_dir_raw": 0,
+            "wind_speed_raw": 0,
             "visibility": "...", 
             "ceiling": "...", 
             "temp": "..." 
@@ -186,9 +200,28 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
         
         result = json.loads(cleaned_content)
 
-        # Fail-safe cleaning for visibility
-        if "bubbles" in result and "visibility" in result["bubbles"]:
-            result["bubbles"]["visibility"] = format_visibility(result["bubbles"]["visibility"])
+        # Fail-safe cleaning for visibility and PHYSICS OVERRIDE for crosswind
+        if "bubbles" in result:
+            # 1. Fix Visibility
+            if "visibility" in result["bubbles"]:
+                result["bubbles"]["visibility"] = format_visibility(result["bubbles"]["visibility"])
+            
+            # 2. Exact Crosswind Calculation (Override AI's guess)
+            # We pull the raw ingredients identified by the AI
+            rwy_h = result["bubbles"].get("rwy_heading_raw", 0)
+            w_dir = result["bubbles"].get("wind_dir_raw", 0)
+            w_spd = result["bubbles"].get("wind_speed_raw", 0)
+            
+            # Call our Python math engine
+            x_wind_value = calculate_crosswind(rwy_h, w_dir, w_spd)
+            
+            # Update the display bubble with the verified number
+            result["bubbles"]["x_wind"] = f"{x_wind_value}kts"
+            
+            # Cleanup: Remove raw fields so they don't clutter the UI frontend
+            result["bubbles"].pop("rwy_heading_raw", None)
+            result["bubbles"].pop("wind_dir_raw", None)
+            result["bubbles"].pop("wind_speed_raw", None)
         
         result['_meta'] = {
             "tokens": tokens,
