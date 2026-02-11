@@ -1,7 +1,9 @@
 import React from 'react';
 
-const Bubble = ({ label, value, highlight, risk }) => {
+const Bubble = ({ label, value, subLabel, subValue, highlight, risk }) => {
   let colorClass = "bg-neutral-800 border-neutral-700";
+  let textColor = "text-white";
+  let riskAnimation = "";
   
   // Logic for Category Highlight (VFR/IFR)
   if (highlight) {
@@ -11,37 +13,46 @@ const Bubble = ({ label, value, highlight, risk }) => {
     else colorClass = "bg-pink-900/40 border-pink-600"; // LIFR
   }
 
-  // Logic for Risk Levels (Specifically for Wind)
+  // Logic for Risk Levels (Wind)
   if (risk) {
     const isRed = risk === "EXCEEDS PROFILE" || risk === "HIGH";
     const isYellow = risk === "NEAR LIMITS" || risk === "MODERATE";
     
     if (isRed) {
-        colorClass = "bg-red-600/20 border-red-500 animate-pulse"; 
+        colorClass = "bg-red-900/40 border-red-500"; 
+        riskAnimation = "animate-pulse";
     } else if (isYellow) {
-        colorClass = "bg-yellow-600/20 border-yellow-500"; 
+        colorClass = "bg-yellow-900/40 border-yellow-500"; 
+        textColor = "text-yellow-200";
     } else {
-        // "WITHIN LIMITS" or "LOW"
         colorClass = "bg-green-900/20 border-green-800";
     }
   }
 
   return (
-    <div className={`${colorClass} border rounded-xl h-32 p-2 flex flex-col items-center relative overflow-hidden transition-colors duration-300`}>
+    <div className={`${colorClass} ${riskAnimation} border rounded-xl h-full min-h-[7.5rem] p-1 flex flex-col relative overflow-hidden transition-colors duration-300`}>
       
-      {/* Label Container */}
-      <div className="h-6 flex items-end justify-center pb-0.5 shrink-0 z-10">
-        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-          {label}
-        </span>
+      {/* SECTION 1 (TOP) */}
+      <div className={`flex-1 flex flex-col justify-center items-center ${subValue ? 'border-b border-white/10' : ''}`}>
+          <span className="text-[9px] md:text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-0.5">
+            {label}
+          </span>
+          <span className={`text-lg md:text-xl font-bold ${textColor} text-center leading-none`}>
+            {value}
+          </span>
       </div>
 
-      {/* Value Container */}
-      <div className="flex-1 flex items-center justify-center w-full z-10">
-        <span className="text-lg md:text-xl font-bold text-white text-center leading-tight px-1 line-clamp-3">
-          {value}
-        </span>
-      </div>
+      {/* SECTION 2 (BOTTOM) - Only renders if subValue exists */}
+      {subValue && (
+        <div className="flex-1 flex flex-col justify-center items-center bg-black/10">
+             <span className="text-[9px] md:text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-0.5">
+                {subLabel}
+             </span>
+             <span className={`text-lg md:text-xl font-bold ${textColor} text-center leading-none`}>
+                {subValue}
+             </span>
+        </div>
+      )}
     </div>
   );
 };

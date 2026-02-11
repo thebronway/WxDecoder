@@ -8,7 +8,7 @@
 
 ### Try it yourself: **[Live Site](https://wxdecoder.conway.im/)**
 
-**Current Version:** `v0.64`  
+**Current Version:** `v0.65`  
 **GitHub:** [thebronway/WxDecoder](https://github.com/thebronway/WxDecoder)  
 
 
@@ -28,6 +28,7 @@ My main goal was to dive into AI engineering and learn how to interact with LLMs
 * **Airspace Alerts:** Checks your proximity to permanent restricted zones (DC SFRA, P-40, Disney, etc.).
 * **Vector Math:** Automatically calculates crosswind components and compares it to the available runways.
 * **Contextual Reporting:** Integrated feedback tools allow pilots to flag hallucinations, automatically capturing the exact METAR/TAF snapshot for debugging.
+* **Kiosk Mode:** A 16:9 full-screen display optimized for TVs in flight schools and FBOs. It automatically polls for new weather data every minute and refreshes the analysis instantly without user interaction.
 
 ## Important Notes
 

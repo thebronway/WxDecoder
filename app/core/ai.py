@@ -90,6 +90,8 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
 
     6. BUBBLES (UI DATA):
        - "wind": Short format (e.g. "North at 10kts" or "Calm").
+       - "x_wind": The calculated crosswind component ONLY (e.g. "8kts").
+       - "rwy": The best runway identifier ONLY (e.g. "30" or "04L").
        - "visibility": Short format (e.g. "10 SM", "1/2 SM").
        - "ceiling": CRITICAL: Must be under 15 chars. Use pilot shorthand for the LOWEST BKN/OVC layer.
          - Example: "OVC 008" (for 800ft overcast)
@@ -112,6 +114,8 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
         }},
         "bubbles": {{ 
             "wind": "...", 
+            "x_wind": "...",
+            "rwy": "...",
             "visibility": "...", 
             "ceiling": "...", 
             "temp": "..." 

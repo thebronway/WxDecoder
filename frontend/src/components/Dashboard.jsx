@@ -229,6 +229,13 @@ const Dashboard = ({ onSearchStateChange }) => {
             {metarTimes && (
                 <div className="flex flex-col items-center gap-2 mb-8">
                     
+                    {/* SPECI ALERT */}
+                    {raw.metar?.includes("SPECI") && (
+                        <div className="mb-1 animate-pulse shadow-[0_0_15px_rgba(234,179,8,0.4)] bg-yellow-900/40 text-yellow-500 border border-yellow-700/50 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                             <TriangleAlert className="w-3 h-3" /> Special / Unscheduled METAR
+                        </div>
+                    )}
+
                     {/* BLUE BUBBLE: Standard Time Display */}
                     <div className="inline-flex items-center justify-center gap-2 text-xs font-mono text-blue-200 bg-blue-900/20 px-6 py-2 rounded-full border border-blue-900/30 shadow-lg shadow-blue-900/10">
                          <Clock className="w-3 h-3 text-blue-500" />
@@ -277,7 +284,7 @@ const Dashboard = ({ onSearchStateChange }) => {
                         if (headerText === "WEATHER") {
                              headerText = "CURRENT WEATHER";
                              if (isDifferent) headerText += ` (${source})`;
-                        } else if (headerText === "CROSSWIND") {
+                        } else if (headerText === "WIND") {
                              if (isDifferent) headerText += ` (${source})`;
                         } else if (headerText === "AIRSPACE") {
                              if (isDifferent) headerText += ` (${target})`;
@@ -347,7 +354,13 @@ const Dashboard = ({ onSearchStateChange }) => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Bubble label="CATEGORY" value={analysis.flight_category} highlight={true} />
-            <Bubble label="CROSSWIND" value={bubbles?.wind || "--"} risk={analysis.crosswind_status || analysis.wind_risk} />
+            <Bubble 
+                label="WIND" 
+                value={bubbles?.wind || "--"} 
+                subLabel={`X-WIND RWY ${bubbles?.rwy || "??"}`}
+                subValue={bubbles?.x_wind || "--"}
+                risk={analysis.crosswind_status || analysis.wind_risk} 
+            />
             <Bubble label="CEILING" value={bubbles?.ceiling || "--"} />
             <Bubble label="VISIBILITY" value={bubbles?.visibility || "--"} />
           </div>

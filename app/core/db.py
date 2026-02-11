@@ -60,6 +60,18 @@ async def init_db_tables():
         enabled INTEGER DEFAULT 1
     );
     """
+
+    # --- NEW KIOSK TABLE ---
+    query_kiosk = """
+    CREATE TABLE IF NOT EXISTS kiosk_airports (
+        icao TEXT PRIMARY KEY,
+        default_profile TEXT DEFAULT 'small',
+        allowed_profiles TEXT, -- Stored as JSON string
+        subscriber_name TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """
     
     try:
         async with database.transaction():
@@ -67,6 +79,7 @@ async def init_db_tables():
             await database.execute(query_cache)
             await database.execute(query_settings)
             await database.execute(query_notif)
+            await database.execute(query_kiosk) # <--- NEW EXECUTION
             
             await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp)")
             await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_id ON logs(client_id)")

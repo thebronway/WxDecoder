@@ -23,6 +23,7 @@ limiter = RateLimiter()
 class AnalysisRequest(BaseModel):
     icao: str
     plane_size: str
+    force: bool = False
 
 def parse_metar_time(metar_str):
     if not metar_str: return None
@@ -92,8 +93,11 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
     t_ai = 0
 
     try:
-        # 1. CACHE CHECK
-        cached_result = await get_cached_report(input_icao, request.plane_size)
+        # 1. CACHE CHECK (Skipped if force=True)
+        cached_result = None
+        if not request.force:
+            cached_result = await get_cached_report(input_icao, request.plane_size)
+
         if cached_result:
             duration = time.time() - t_start
             status = "CACHE_HIT" 
@@ -114,7 +118,18 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
             return cached_result
 
         # 2. RATE LIMIT CHECK
-        await limiter(raw_request)
+        # LOGIC UPDATE: Exempt authorized Kiosks from rate limits during forced refreshes
+        is_exempt = False
+        if request.force:
+             # Check if this ICAO is in our "Paid/Authorized" Kiosk table
+             # We use fetch_val for speed (SELECT 1 returns 1 if found)
+             kiosk_check = "SELECT 1 FROM kiosk_airports WHERE icao = :icao AND is_active = 1"
+             is_kiosk = await database.fetch_val(kiosk_check, values={"icao": resolved_icao})
+             if is_kiosk:
+                 is_exempt = True
+
+        if not is_exempt:
+            await limiter(raw_request)
 
         # 3. FETCH DATA
         airport_data = airports_icao.get(input_icao) or airports_lid.get(input_icao)
