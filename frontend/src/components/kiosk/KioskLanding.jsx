@@ -167,13 +167,13 @@ const KioskLanding = () => {
             />
             <FeatureCard 
                 icon={ShieldAlert}
-                title="Airspace Guardian" 
+                title="Airspace Guardian (Coming Soon)" 
                 desc="Automatic proximity checks for permanent and temporary flight restricted zones. Don't let a student pilot blunder into airspace they shouldn't."
             />
             <FeatureCard 
                 icon={Zap}
                 title="Customizable (Coming Soon)" 
-                desc="A kiosk is fully customizable on what data is displayed. Even feed custom API data or specific situational awareness items right where you need them."
+                desc="Fully modular layouts. Mix and match weather data with your own custom API feeds to build the exact situational awareness tool your operation requires."
             />
         </div>
       </div>

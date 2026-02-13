@@ -3,6 +3,7 @@ import datetime
 import asyncio
 import re
 import logging
+from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
@@ -24,7 +25,7 @@ class AnalysisRequest(BaseModel):
     icao: str
     plane_size: str
     force: bool = False
-    weather_override: str = None
+    weather_override: Optional[str] = None
 
 def parse_metar_time(metar_str):
     if not metar_str: return None
@@ -132,8 +133,8 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         is_exempt = False
         if request.force:
              # Check if this ICAO is in our "Paid/Authorized" Kiosk table
-             # We use fetch_val for speed (SELECT 1 returns 1 if found)
-             kiosk_check = "SELECT 1 FROM kiosk_airports WHERE icao = :icao AND is_active = 1"
+             # UPDATED: Checks new 'kiosk_profiles' table using target_icao
+             kiosk_check = "SELECT 1 FROM kiosk_profiles WHERE target_icao = :icao AND is_active = 1"
              is_kiosk = await database.fetch_val(kiosk_check, values={"icao": resolved_icao})
              if is_kiosk:
                  is_exempt = True
@@ -142,17 +143,28 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
             await limiter(raw_request)
 
         # 3. FETCH DATA
-        airport_data = airports_icao.get(input_icao) or airports_lid.get(input_icao)
-        airport_name = airport_data['name'] if airport_data else input_icao
-        airport_tz = airport_data.get('tz', 'UTC') if airport_data else 'UTC'
-        
-        if airport_data: resolved_icao = airport_data.get('icao', input_icao)
+        # Unified Coordinate Resolution
+        target_lat, target_lon = None, None
+        airport_name = input_icao
+        airport_tz = 'UTC'
+
+        # Try Local DB (ICAO or LID)
+        local_data = airports_icao.get(input_icao) or airports_lid.get(input_icao)
+        if local_data:
+            target_lat, target_lon = float(local_data['lat']), float(local_data['lon'])
+            airport_name = local_data['name']
+            airport_tz = local_data.get('tz', 'UTC')
+            resolved_icao = local_data.get('icao', input_icao)
+        else:
+            # Try Remote (Re-use data from Sanity Check if available)
+            if 'remote_data' in locals() and remote_data:
+                 target_lat, target_lon = remote_data['lat'], remote_data['lon']
+                 airport_name = remote_data.get('name', input_icao)
 
         airspace_warnings = []
-        if airport_data:
+        if target_lat is not None and target_lon is not None:
             try:
-                lat, lon = float(airport_data['lat']), float(airport_data['lon'])
-                airspace_warnings = check_airspace_zones(input_icao, lat, lon)
+                airspace_warnings = check_airspace_zones(input_icao, target_lat, target_lon)
             except Exception: pass
 
         # Determine Weather Source (Override or Default)
@@ -179,15 +191,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
                 src_data = airports_icao.get(target_wx) or airports_lid.get(target_wx)
                 weather_name = src_data['name'] if src_data else target_wx
                 
-                # Calculate Distance if both coords are known (Check local DB first, then remote data)
-                # This fixes the "0nm" issue for airports not in the local database (e.g. KANP)
-                target_lat, target_lon = None, None
-                
-                if airport_data:
-                    target_lat, target_lon = float(airport_data['lat']), float(airport_data['lon'])
-                elif 'remote_data' in locals() and remote_data:
-                    target_lat, target_lon = remote_data['lat'], remote_data['lon']
-
+                # Calculate Distance using unified coordinates
                 if src_data and target_lat is not None and target_lon is not None:
                     try:
                          lat2, lon2 = float(src_data['lat']), float(src_data['lon'])
@@ -252,6 +256,42 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         
         if not weather_data:
             weather_data = {"metar": None, "taf": None}
+
+        # --- MID-STREAM CACHE CHECK (Smart Link) ---
+        # Check if we have a specific report for [Input:KANP + Source:KBWI].
+        if weather_icao and not request.force:
+            mid_stream_cache = await get_cached_report(input_icao, request.plane_size, weather_icao)
+            
+            if mid_stream_cache:
+                # 1. Backfill the "Auto" key (if this request was Auto)
+                if not request.weather_override:
+                     # Save to the "Default" key
+                     await save_cached_report(input_icao, request.plane_size, mid_stream_cache, ttl_seconds=300, weather_source=None)
+
+                # 2. Log & Return
+                duration = time.time() - t_start
+                
+                output_for_log = resolved_icao
+                if resolved_icao == ("K" + raw_input) and any(char.isdigit() for char in raw_input):
+                    output_for_log = raw_input
+
+                # Extract Expiration if present
+                ms_exp_dt = None
+                if 'valid_until' in mid_stream_cache:
+                     ms_exp_dt = datetime.datetime.fromtimestamp(mid_stream_cache['valid_until'], datetime.timezone.utc)
+
+                # IMPORTANT: Update status so 'finally' block knows we succeeded
+                status = "CACHE_HIT_LINK"
+
+                await log_attempt(
+                    client_id, client_ip, raw_input, output_for_log, request.plane_size, 
+                    duration, status, 
+                    weather_icao=weather_icao, expiration=ms_exp_dt,
+                    t_wx=t_wx_fetch, t_notams=t_notams, t_ai=0, t_alt=t_alt # Pass timings!
+                )
+                
+                mid_stream_cache['is_cached'] = True
+                return mid_stream_cache
 
         t0 = time.time()
         
@@ -336,7 +376,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         raise e
         
     finally:
-        if status != "CACHE_HIT":
+        if status != "CACHE_HIT" and status != "CACHE_HIT_LINK":
             duration = time.time() - t_start
             
             perf_msg = f"⏱️  PERFORMANCE: {input_icao} | Total: {duration:.2f}s | Wx: {t_wx_fetch:.2f}s"

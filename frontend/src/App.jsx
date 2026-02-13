@@ -157,7 +157,7 @@ const AppContent = () => {
               <Link to="/report" className="hover:text-white transition-colors">Report an Issue</Link>
               <Link to="/disclaimer" className="hover:text-white transition-colors">Terms Of Use & Disclaimer</Link>
             </div>
-            <p>&copy; {new Date().getFullYear()} WxDecoder • All rights reserved • v0.71 • Built by Pilots for Pilots</p>
+            <p>&copy; {new Date().getFullYear()} WxDecoder • All rights reserved • v0.73 • Built by Pilots for Pilots</p>
             <div className="flex flex-col items-center gap-2">
               <span className="text-neutral-500 italic">Help with server and API costs:</span>
               <a 

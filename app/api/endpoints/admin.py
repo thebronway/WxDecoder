@@ -208,6 +208,7 @@ async def get_cache_entries():
             "key": row['key'],
             "icao": row['icao'],
             "category": row['category'],
+            "weather_source": data_blob.get('raw_data', {}).get('weather_source'),
             "timestamp": stored_time, # <--- Used to be just row['timestamp']
             "expires_at": datetime.datetime.fromtimestamp(data_blob.get('valid_until'), datetime.timezone.utc) if data_blob.get('valid_until') else None
         })

@@ -117,23 +117,24 @@ const BriefingScroller = ({ analysis, isDifferent, source, target }) => {
             // 1. Enable animation
             setTransitionDuration(2000);
             
-            // 2. Move to next index on the next frame to ensure CSS transition catches up
+            // 2. Move to next index
             requestAnimationFrame(() => {
                 setActiveIndex(prev => {
-                    const next = prev + 1;
-                    return next >= offsets.length ? 0 : next;
+                    // Safety check: if we somehow went past, reset now
+                    if (prev >= sections.length) return 0;
+                    return prev + 1;
                 });
             });
         }, 8000);
 
         return () => clearInterval(interval);
-    }, [offsets, shouldScroll]);
+    }, [offsets, shouldScroll, sections.length]);
 
 
     // 4. The "Snap" Logic (Teleport from Duplicate to Start)
     useEffect(() => {
-        // If we are at the last item (The Duplicate)
-        if (shouldScroll && activeIndex === offsets.length - 1) {
+        // Snap point: When we reach the start of the duplicate set
+        if (shouldScroll && activeIndex === sections.length) {
             // Wait slightly longer than the transition (2200ms) to ensure it is fully settled
             const timeout = setTimeout(() => {
                 // Disable transition instantly
@@ -144,11 +145,11 @@ const BriefingScroller = ({ analysis, isDifferent, source, target }) => {
             }, 2200);
             return () => clearTimeout(timeout);
         }
-    }, [activeIndex, shouldScroll, offsets.length]);
+    }, [activeIndex, shouldScroll, sections.length]);
 
 
-    // Prepare list: If scrolling, append the first section at the end
-    const itemsToRender = shouldScroll ? [...sections, sections[0]] : sections;
+    // Prepare list: Double Buffer (Render twice for seamless loop)
+    const itemsToRender = shouldScroll ? [...sections, ...sections] : sections;
     
     const currentTranslateY = (offsets[activeIndex] !== undefined) ? -offsets[activeIndex] : 0;
 
@@ -370,7 +371,7 @@ const KioskDisplay = () => {
                             {/* SPECI Indicator */}
                             {raw_data.metar?.includes("SPECI") && (
                                 <span className="bg-yellow-900/40 text-yellow-500 border border-yellow-700/50 px-3 py-1 rounded text-xl font-bold font-mono animate-pulse shadow-[0_0_10px_rgba(234,179,8,0.2)]">
-                                    Special / Unscheduled METAR
+                                    SPECI
                                 </span>
                             )}                           
                             
@@ -379,7 +380,7 @@ const KioskDisplay = () => {
                                 <div className="inline-flex items-center justify-center gap-2 text-sm font-mono text-yellow-200 bg-yellow-900/30 px-4 py-1 rounded-full border border-yellow-700/50 animate-fade-in">
                                      <Info className="w-4 h-4 text-yellow-500" />
                                      <span className="text-[10px] uppercase tracking-widest text-yellow-500 font-bold mr-1">METAR Source:</span>
-                                     <span>{source} {raw_data.weather_dist > 0 ? `| ${raw_data.weather_dist}nm` : ""}</span>
+                                     <span>{source} {raw_data.weather_dist > 0 ? `(${raw_data.weather_dist}nm)` : ""}</span>
                                 </div>
                             )}
 

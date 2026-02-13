@@ -9,14 +9,18 @@ const CacheManager = () => {
   const [loading, setLoading] = useState(true);
   const [tz, setTz] = useState("UTC");
 
+  const [kiosks, setKiosks] = useState([]); // Add State
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [cacheData, settingsData] = await Promise.all([
+      const [cacheData, settingsData, kioskData] = await Promise.all([
           api.get("/api/admin/cache"),
-          api.get("/api/admin/settings")
+          api.get("/api/admin/settings"),
+          api.get("/api/kiosk/list")
       ]);
       setCache(cacheData);
+      setKiosks(kioskData); // Set Kiosks
       if (Array.isArray(settingsData.config)) {
            const foundTz = settingsData.config.find(c => c.key === "app_timezone");
            if (foundTz) setTz(foundTz.value);
@@ -85,7 +89,9 @@ const CacheManager = () => {
             <thead className="bg-neutral-800 text-neutral-400 uppercase tracking-wider">
                 <tr>
                     <th className="p-4">Airport</th>
+                    <th className="p-4">Wx Source</th>
                     <th className="p-4">Profile</th>
+                    <th className="p-4">Active Kiosks</th>
                     <th className="p-4">Stored At</th>
                     <th className="p-4">Expires At ({tz})</th>
                     <th className="p-4 text-right">Action</th>
@@ -96,9 +102,27 @@ const CacheManager = () => {
                     <tr><td colSpan="5" className="p-8 text-center text-blue-500 animate-pulse">LOADING CACHED DATA...</td></tr>
                 ) : filtered.length === 0 ? (
                     <tr><td colSpan="5" className="p-8 text-center text-neutral-500">Cache is empty.</td></tr>
-                ) : filtered.map((row) => (
+                ) : filtered.map((row) => {
+                    // Match Kiosks to this Cache Row
+                    const matchingKiosks = kiosks.filter(k => 
+                        k.target_icao === row.icao && 
+                        (
+                            // 1. Kiosk has explicit override matching this row's source
+                            (k.weather_override_icao && k.weather_override_icao === row.weather_source) || 
+                            // 2. Kiosk is Auto (No override) - It matches any entry for this target
+                            (!k.weather_override_icao)
+                        )
+                    );
+
+                    return (
                     <tr key={row.key} className="hover:bg-neutral-800/50 group">
                         <td className="p-4 text-white font-bold">{row.icao}</td>
+                        
+                        {/* WX SOURCE COLUMN */}
+                        <td className="p-4 font-mono text-yellow-500">
+                            {row.weather_source || "-"}
+                        </td>
+
                         <td className="p-4">
                             <span className={`px-2 py-0.5 rounded text-[10px] border ${
                                 row.category === 'SMALL' ? 'border-green-900 text-green-400' : 
@@ -107,6 +131,18 @@ const CacheManager = () => {
                                 {row.category}
                             </span>
                         </td>
+
+                        {/* KIOSK COLUMN */}
+                        <td className="p-4">
+                            <div className="flex flex-wrap gap-1">
+                                {matchingKiosks.length > 0 ? matchingKiosks.map(k => (
+                                    <span key={k.slug} className="px-2 py-0.5 bg-neutral-700 rounded text-[10px] text-white" title={k.subscriber_name}>
+                                        {k.slug}
+                                    </span>
+                                )) : <span className="text-neutral-600">-</span>}
+                            </div>
+                        </td>
+
                         <td className="p-4 text-neutral-500">{formatTime(row.timestamp)}</td>
                         <td className="p-4 text-yellow-500/80">{formatTime(row.expires_at)}</td>
                         <td className="p-4 text-right">
@@ -119,7 +155,7 @@ const CacheManager = () => {
                             </button>
                         </td>
                     </tr>
-                ))}
+                );})}
             </tbody>
         </table>
       </div>
