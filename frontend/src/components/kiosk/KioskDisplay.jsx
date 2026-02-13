@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Bubble from '../Bubble';
-import { Monitor, AlertTriangle, Clock, Plane } from 'lucide-react';
+import { AlertTriangle, Clock, Plane, Info } from 'lucide-react';
 
 const NOTAMScroller = ({ notams }) => {
     if (!notams || notams.length === 0) return <div className="p-4 text-gray-500">No NOTAMs.</div>;
@@ -114,13 +114,16 @@ const BriefingScroller = ({ analysis, isDifferent, source, target }) => {
         if (!shouldScroll || offsets.length === 0) return;
 
         const interval = setInterval(() => {
-            setActiveIndex(prev => {
-                const next = prev + 1;
-                // If next is beyond our list (shouldn't happen with snap logic), reset.
-                return next >= offsets.length ? 0 : next;
-            });
-            // Ensure animation is on for the move
+            // 1. Enable animation
             setTransitionDuration(2000);
+            
+            // 2. Move to next index on the next frame to ensure CSS transition catches up
+            requestAnimationFrame(() => {
+                setActiveIndex(prev => {
+                    const next = prev + 1;
+                    return next >= offsets.length ? 0 : next;
+                });
+            });
         }, 8000);
 
         return () => clearInterval(interval);
@@ -131,13 +134,14 @@ const BriefingScroller = ({ analysis, isDifferent, source, target }) => {
     useEffect(() => {
         // If we are at the last item (The Duplicate)
         if (shouldScroll && activeIndex === offsets.length - 1) {
-            // Wait for the slide animation (2000ms) to finish
+            // Wait slightly longer than the transition (2200ms) to ensure it is fully settled
             const timeout = setTimeout(() => {
-                // Disable transition
+                // Disable transition instantly
                 setTransitionDuration(0);
                 // Teleport to index 0 (Visual Match)
                 setActiveIndex(0);
-            }, 2000);
+                // We DO NOT restore duration here; the Interval will handle it before the next move.
+            }, 2200);
             return () => clearTimeout(timeout);
         }
     }, [activeIndex, shouldScroll, offsets.length]);
@@ -208,7 +212,7 @@ const getMetarTime = (metarString, timezone) => {
 };
 
 const KioskDisplay = () => {
-    const { icao, profile } = useParams();
+    const { slug } = useParams();
     const navigate = useNavigate();
     
     // State
@@ -227,24 +231,24 @@ const KioskDisplay = () => {
 
     // 1. Initial Authorization & Config Load
     useEffect(() => {
+        console.log("🔄 Kiosk useEffect triggering for slug:", slug);
         const init = async () => {
             try {
-                const conf = await api.get(`/api/kiosk/config/${icao}`);
+                console.log("🚀 Fetching config for:", slug);
+                // Fetch Config by Slug
+                const conf = await api.get(`/api/kiosk/config/${slug}`);
+                console.log("✅ Config received:", conf);
                 setConfig(conf);
                 
-                if (!profile) {
-                    navigate(`/kiosk/${icao}/${conf.default_profile}`, { replace: true });
-                } else if (!conf.allowed_profiles.includes(profile)) {
-                    navigate(`/kiosk/${icao}/${conf.default_profile}`, { replace: true });
-                } else {
-                    loadAnalysis(profile, false); // Initial load, use cache
-                }
+                // Trigger initial analysis using the config's defaults
+                loadAnalysis(conf.default_profile, false, conf); 
             } catch (e) {
-                navigate('/kiosk');
+                console.error("Config Load Error", e);
+                setLoading(false);
             }
         };
         init();
-    }, [icao, profile]);
+    }, [slug]);
 
     // 2. Clock & Wake Lock
     useEffect(() => {
@@ -271,9 +275,12 @@ const KioskDisplay = () => {
             if (!config) return;
 
             try {
-                // Pass the actual source (e.g. nearest station) to ensure we poll the right airport
-                const query = weatherSource ? `?source=${weatherSource}` : "";
-                const res = await api.get(`/api/kiosk/peek/${icao}${query}`);
+                // Peek the TARGET icao from config
+                const targetIcao = config.target_icao;
+                const wxSource = config.weather_override_icao || weatherSource;
+                
+                const query = wxSource ? `?source=${wxSource}` : "";
+                const res = await api.get(`/api/kiosk/peek/${targetIcao}${query}`);
                 
                 if (res.status === "success" && res.raw_metar) {
                     const cleanNew = res.raw_metar.replace(/\s/g, '');
@@ -281,27 +288,30 @@ const KioskDisplay = () => {
                     
                     if (cleanNew !== cleanOld) {
                         console.log("KIOSK: New METAR detected. Refreshing AI...");
-                        loadAnalysis(profile, true); // Force refresh
+                        // Use config.default_profile instead of 'profile'
+                        loadAnalysis(config.default_profile, true, config);
                     }
                 }
             } catch (e) { console.error("Poll failed", e); }
         }, 60 * 1000); 
 
         return () => clearInterval(poller);
-    }, [config, lastMetarRaw, profile]);
+    }, [config, lastMetarRaw]);
 
-    const loadAnalysis = async (pSize, force = false) => {
+    const loadAnalysis = async (pSize, force = false, conf = config) => {
+        if (!conf) return;
         setLoading(true);
         try {
             const res = await api.post("/api/analyze", { 
-                icao: icao, 
+                icao: conf.target_icao, 
                 plane_size: pSize,
-                force: force 
+                force: force,
+                weather_override: conf.weather_override_icao // Pass the override
             });
             setData(res);
             setLastMetarRaw(res.raw_data?.metar);
             setWeatherSource(res.raw_data?.weather_source);
-            document.title = `${icao.toUpperCase()} | WxDecoder`;
+            document.title = `${conf.target_icao} | WxDecoder`;
         } catch (e) {
             console.error("Analysis load failed", e);
         } finally {
@@ -309,7 +319,8 @@ const KioskDisplay = () => {
         }
     };
 
-    if (!data || loading) {
+    // LOADING STATE
+    if (loading) {
         return (
             <div className="w-screen h-screen bg-black flex flex-col items-center justify-center space-y-8">
                 <img src="/logo.webp" className="w-64 md:w-96 animate-pulse" />
@@ -318,11 +329,25 @@ const KioskDisplay = () => {
         );
     }
 
+    // ERROR STATE (Prevents White Screen Crash)
+    if (!data) {
+        return (
+            <div className="w-screen h-screen bg-neutral-900 flex flex-col items-center justify-center space-y-4 text-center p-8">
+                <AlertTriangle className="w-16 h-16 text-red-500" />
+                <h1 className="text-3xl font-bold text-white">Connection Lost</h1>
+                <p className="text-gray-400">Unable to load kiosk configuration or weather data.</p>
+                <div className="text-xs font-mono text-red-400 bg-red-900/20 p-4 rounded border border-red-900/50 mt-4">
+                    DEBUG: Slug="{slug}" | Config={config ? "OK" : "MISSING"}
+                </div>
+            </div>
+        );
+    }
+
     const { analysis, raw_data } = data;
     const timeline = analysis.timeline || {};
     const metarTimes = getMetarTime(raw_data.metar, data.airport_tz || 'UTC');
 
-    const target = icao ? icao.toUpperCase() : "";
+    const target = config?.target_icao || "";
     const source = raw_data.weather_source ? raw_data.weather_source.toUpperCase() : "";
     const isDifferent = source && target && source !== target && source !== "K" + target;
 
@@ -335,12 +360,12 @@ const KioskDisplay = () => {
                     <img src="/logo.webp" className="h-20 w-auto object-contain" />
                     <div className="min-w-0 flex-1 pr-6">
                         <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-none truncate whitespace-nowrap">
-                            {data.airport_name}
+                            {config?.title_override || data.airport_name}
                         </h1>
                         <div className="flex items-center gap-6 mt-3">
-                            <span className="bg-blue-900/30 text-blue-400 border border-blue-800 px-3 py-1 rounded text-xl font-bold font-mono">
-                                {icao.toUpperCase()}
-                            </span>
+                        <span className="bg-blue-900/30 text-blue-400 border border-blue-800 px-3 py-1 rounded text-xl font-bold font-mono">
+                            {config?.target_icao}
+                        </span>
 
                             {/* SPECI Indicator */}
                             {raw_data.metar?.includes("SPECI") && (
@@ -349,6 +374,15 @@ const KioskDisplay = () => {
                                 </span>
                             )}                           
                             
+                            {/* METAR Source Bubble (If different or distant) */}
+                            {(isDifferent || raw_data.weather_dist > 0) && (
+                                <div className="inline-flex items-center justify-center gap-2 text-sm font-mono text-yellow-200 bg-yellow-900/30 px-4 py-1 rounded-full border border-yellow-700/50 animate-fade-in">
+                                     <Info className="w-4 h-4 text-yellow-500" />
+                                     <span className="text-[10px] uppercase tracking-widest text-yellow-500 font-bold mr-1">METAR Source:</span>
+                                     <span>{source} {raw_data.weather_dist > 0 ? `| ${raw_data.weather_dist}nm` : ""}</span>
+                                </div>
+                            )}
+
                             {/* METAR Time Bubble */}
                             {metarTimes && (
                                 <div className="inline-flex items-center justify-center gap-2 text-sm font-mono text-blue-200 bg-blue-900/20 px-4 py-1 rounded-full border border-blue-900/30">
@@ -363,7 +397,7 @@ const KioskDisplay = () => {
                             {/* Grey Profile Bubble */}
                             <div className="inline-flex items-center justify-center gap-2 text-sm font-mono text-gray-300 bg-neutral-800/50 px-4 py-1 rounded-full border border-neutral-700/50">
                                  <Plane className="w-4 h-4 text-gray-500" />
-                                 <span className="text-gray-500 font-bold">PROFILE</span> {profile.toUpperCase()} (MAX: {PROFILE_LIMITS[profile] || "--"})
+                                 <span className="text-gray-500 font-bold">PROFILE</span> {config?.default_profile?.toUpperCase()} (MAX: {PROFILE_LIMITS[config?.default_profile] || "--"})
                             </div>
                         </div>
                     </div>
@@ -403,17 +437,27 @@ const KioskDisplay = () => {
                         <Bubble label="VISIBILITY" value={analysis.bubbles?.visibility} />
                     </div>
 
-                    {/* 2. Forecast Bubbles (TAF) */}
-                    <div className="grid grid-cols-2 gap-4 flex-none">
-                        <TimelineCard 
-                            title={`Weather ${timeline.forecast_1?.time_label || "Upcoming"}${isDifferent ? ` (${source})` : ""}`}
-                            summary={timeline.forecast_1?.summary || timeline.forecast_1} 
-                        />
-                        <TimelineCard 
-                            title={`Weather ${timeline.forecast_2?.time_label || "Outlook"}${isDifferent ? ` (${source})` : ""}`}
-                            summary={timeline.forecast_2?.summary || timeline.forecast_2} 
-                        />
-                    </div>
+                    {/* 2. Forecast Bubbles (TAF) - Hide if NO TAF AVAILABLE */ }
+                    {(raw_data.taf && !raw_data.taf.includes("No TAF available")) && (
+                        <div className="grid grid-cols-2 gap-4 flex-none">
+                            <TimelineCard 
+                                title={`Weather ${timeline.forecast_1?.time_label || "Upcoming"}${isDifferent ? ` (${source})` : ""}`}
+                                summary={timeline.forecast_1?.summary || timeline.forecast_1} 
+                            />
+                            <TimelineCard 
+                                title={
+                                    (timeline.forecast_2 === "NO_TAF" || timeline.forecast_2?.time_label === "NO_TAF") 
+                                    ? "NO ADDITIONAL TAF AVAILABLE"
+                                    : `Weather ${timeline.forecast_2?.time_label || "Outlook"}${isDifferent ? ` (${source})` : ""}`
+                                }
+                                summary={
+                                    (timeline.forecast_2 === "NO_TAF" || timeline.forecast_2?.summary === "NO_TAF" || timeline.forecast_2?.summary === "NO_TAF.")
+                                    ? "--"
+                                    : (timeline.forecast_2?.summary || timeline.forecast_2)
+                                } 
+                            />
+                        </div>
+                    )}
 
                     {/* 3. AI Briefing Box - Takes Remaining Space */}
                     <div className="bg-neutral-800/40 border border-neutral-700/50 rounded-2xl p-6 flex-1 min-h-0 relative shadow-2xl flex flex-col overflow-hidden">

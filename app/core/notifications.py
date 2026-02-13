@@ -44,7 +44,7 @@ class NotificationManager:
         print(f"DEBUG: Sending '{event_type}' alert via: {channels}")
 
         if "smtp" in channels and self.smtp_host:
-            self._send_email(subject, message)
+            await self._send_email(subject, message)
         
         if "discord" in channels and self.discord_url:
             await self._send_discord(subject, message)
@@ -52,10 +52,10 @@ class NotificationManager:
         if "slack" in channels and self.slack_url:
             await self._send_slack(subject, message)
 
-    def _send_email(self, subject, body):
+    async def _send_email(self, subject, body, event_type=None):
         try:
-            from_addr = settings.get("smtp_from_email")
-            to_addr = settings.get("admin_alert_email")
+            from_addr = await settings.get("smtp_from_email")
+            to_addr = await settings.get("admin_alert_email")
 
             if not from_addr or not to_addr:
                 print("DEBUG: Email skipped. Check 'smtp_from_email' and 'admin_alert_email' in Settings.")
@@ -63,9 +63,20 @@ class NotificationManager:
 
             print(f"DEBUG: Emailing {to_addr}...")
 
+            # Subject Logic
+            prefix = "[WxDecoder]"
+            if event_type == "api_outage":
+                prefix = "[WxDecoder CRITICAL]"
+            elif subject.startswith("Test"):
+                prefix = "[WxDecoder Test]"
+            elif subject.startswith("Kiosk Inquiry"):
+                prefix = "[WxDecoder Sales]"
+            elif event_type == "user_report":
+                prefix = "[WxDecoder Feedback]"
+
             msg = EmailMessage()
             msg.set_content(body)
-            msg['Subject'] = f"[GoNoGo Alert] {subject}"
+            msg['Subject'] = f"{prefix} {subject}"
             msg['From'] = from_addr
             msg['To'] = to_addr
 
@@ -81,7 +92,7 @@ class NotificationManager:
     async def _send_discord(self, subject, body):
         try:
             payload = {
-                "username": "GoNoGo Watchdog",
+                "username": "WxDecoder Watchdog",
                 "embeds": [{
                     "title": subject,
                     "description": body,

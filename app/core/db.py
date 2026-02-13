@@ -61,39 +61,54 @@ async def init_db_tables():
     );
     """
 
-    # --- NEW KIOSK TABLE ---
+    # --- NEW KIOSK TABLE (Client-Centric) ---
+    # We drop the old one to ensure clean migration as requested
+    await database.execute("DROP TABLE IF EXISTS kiosk_airports")
+
     query_kiosk = """
-    CREATE TABLE IF NOT EXISTS kiosk_airports (
-        icao TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS kiosk_profiles (
+        slug TEXT PRIMARY KEY,       -- The URL identifier (e.g. 'boston-flight-academy')
+        target_icao TEXT,            -- The actual airport (e.g. 'KBOS')
+        weather_override_icao TEXT,  -- Optional: Force weather from here (e.g. 'KJFK')
+        title_override TEXT,         -- Optional: 'Bob's Flight School'
         default_profile TEXT DEFAULT 'small',
-        allowed_profiles TEXT, -- Stored as JSON string
+        config_options TEXT,         -- JSON for flags (show_notams, etc)
         subscriber_name TEXT,
         is_active INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
     
+    # 1. Base Tables (Safe to run concurrently with IF NOT EXISTS)
     try:
         async with database.transaction():
             await database.execute(query_logs)
             await database.execute(query_cache)
             await database.execute(query_settings)
             await database.execute(query_notif)
-            await database.execute(query_kiosk) # <--- NEW EXECUTION
+            await database.execute(query_kiosk)
             
             await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp)")
             await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_id ON logs(client_id)")
             await database.execute("CREATE INDEX IF NOT EXISTS idx_logs_input_icao ON logs(input_icao)")
-
-            try:
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS weather_icao TEXT")
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS expiration_timestamp TIMESTAMP")                
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_wx REAL")
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_notams REAL")
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_ai REAL")
-                await database.execute("ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_alt REAL")
-            except Exception as ex:
-                logger.warning(f"Schema migration warning: {ex}")
-
     except Exception as e:
-        logger.info(f"DB Init skipped or failed (likely race condition): {e}")
+        # It's fine if this fails on race conditions, tables likely exist
+        logger.info(f"Table Init Race Condition (Harmless): {e}")
+
+    # 2. Migrations (Run individually to prevent Deadlocks)
+    # We run these outside the transaction so if one blocks/fails, it doesn't kill the whole app boot
+    migration_queries = [
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS weather_icao TEXT",
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS expiration_timestamp TIMESTAMP",
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_wx REAL",
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_notams REAL",
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_ai REAL",
+        "ALTER TABLE logs ADD COLUMN IF NOT EXISTS duration_alt REAL"
+    ]
+
+    for q in migration_queries:
+        try:
+            await database.execute(q)
+        except Exception:
+            # If it fails (deadlock or already done), just ignore and move on
+            pass

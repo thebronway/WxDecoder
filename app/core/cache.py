@@ -13,9 +13,14 @@ def get_plane_category(plane_input: str) -> str:
         return "MEDIUM"
     return "SMALL"
 
-async def get_cached_report(icao: str, plane_input: str):
+async def get_cached_report(icao: str, plane_input: str, weather_source: str = None):
     category = get_plane_category(plane_input)
-    cache_key = f"{icao.upper()}_{category}"
+    
+    # Context-Aware Key Generation
+    if weather_source and weather_source.upper() != icao.upper():
+        cache_key = f"{icao.upper()}_src_{weather_source.upper()}_{category}"
+    else:
+        cache_key = f"{icao.upper()}_{category}"
     
     query = "SELECT * FROM flight_cache WHERE key = :key"
     row = await database.fetch_one(query=query, values={"key": cache_key})
@@ -50,9 +55,14 @@ async def get_cached_report(icao: str, plane_input: str):
 
     return data
 
-async def save_cached_report(icao: str, plane_input: str, data: dict, ttl_seconds: int = DEFAULT_TTL):
+async def save_cached_report(icao: str, plane_input: str, data: dict, ttl_seconds: int = DEFAULT_TTL, weather_source: str = None):
     category = get_plane_category(plane_input)
-    cache_key = f"{icao.upper()}_{category}"
+    
+    # Context-Aware Key Generation
+    if weather_source and weather_source.upper() != icao.upper():
+        cache_key = f"{icao.upper()}_src_{weather_source.upper()}_{category}"
+    else:
+        cache_key = f"{icao.upper()}_{category}"
     
     # Inject Expiration Stamp into the Data Blob
     now = datetime.datetime.utcnow()

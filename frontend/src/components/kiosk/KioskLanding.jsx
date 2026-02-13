@@ -1,5 +1,5 @@
 import React from 'react';
-import { Monitor, CheckCircle2, Tv, RefreshCw, BrainCircuit, ExternalLink, Mail, Plane, ShieldAlert, Zap } from 'lucide-react';
+import { Monitor, CheckCircle2, RefreshCw, BrainCircuit, ExternalLink, Mail, Plane, ShieldAlert, Zap } from 'lucide-react';
 import KioskInquiryModal from './KioskInquiryModal';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -153,27 +153,27 @@ const KioskLanding = () => {
             <FeatureCard 
                 icon={RefreshCw}
                 title="Always-On Awareness" 
-                desc="The system automatically polls for new METARs every 60 seconds. As soon as conditions change, the screen updates instantly."
+                desc="The system automatically polls for new METARs and SPECIs every 60 seconds. As soon as conditions change, the kiosk updates instantly."
             />
             <FeatureCard 
                 icon={BrainCircuit}
                 title="Safety Culture" 
-                desc="Raw data is crucial, but context is key. We decode NOTAMs and analyze crosswind components against your fleet to support Go/No-Go decisions."
+                desc="Raw data is crucial, but context is key. We decode NOTAMs and analyze crosswind components against your selected aircraft profile to support situational awareness."
             />
             <FeatureCard 
                 icon={Plane}
-                title="Fleet Logic" 
-                desc="Tailor the analysis to your aircraft. Whether you fly C172s or TBMs, the system flags crosswinds based on your specific operational limits."
+                title="Aircraft Logic" 
+                desc="Tailor the kiosk to your aircraft profile. Whether you fly C172s or TBMs, the system moniotrs crosswinds based on your specified operational limits."
             />
             <FeatureCard 
                 icon={ShieldAlert}
                 title="Airspace Guardian" 
-                desc="Automatic proximity checks for critical airspace like the DC SFRA or P-40. Don't let a student pilot blunder into a restricted zone."
+                desc="Automatic proximity checks for permanent and temporary flight restricted zones. Don't let a student pilot blunder into airspace they shouldn't."
             />
             <FeatureCard 
                 icon={Zap}
-                title="High Reliability" 
-                desc="Engineered for uptime. Our smart caching and error handling systems ensure your screen stays live, even during momentary API outages."
+                title="Customizable (Coming Soon)" 
+                desc="A kiosk is fully customizable on what data is displayed. Even feed custom API data or specific situational awareness items right where you need them."
             />
         </div>
       </div>

@@ -17,11 +17,11 @@ import NotFound from './components/NotFound';
 
 // Wrapper component to use hooks inside Router context
 const AppContent = () => {
+  const location = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [banner, setBanner] = useState(null);
   const [hasResults, setHasResults] = useState(false); // Track if Dashboard has results
-  const location = useLocation(); // Track current page
 
   useEffect(() => {
     // 1. Handle Scroll
@@ -144,8 +144,7 @@ const AppContent = () => {
 
              {/* Kiosk Routes */}
              <Route path="/kiosk" element={<KioskLanding />} />
-             <Route path="/kiosk/:icao" element={<KioskDisplay />} />
-             <Route path="/kiosk/:icao/:profile" element={<KioskDisplay />} />
+             <Route path="/kiosk/:slug" element={<KioskDisplay />} />
 
              <Route path="*" element={<NotFound />} />
            </Routes>
@@ -158,7 +157,7 @@ const AppContent = () => {
               <Link to="/report" className="hover:text-white transition-colors">Report an Issue</Link>
               <Link to="/disclaimer" className="hover:text-white transition-colors">Terms Of Use & Disclaimer</Link>
             </div>
-            <p>&copy; {new Date().getFullYear()} WxDecoder v0.71 • Built for Pilots • All rights reserved</p>
+            <p>&copy; {new Date().getFullYear()} WxDecoder • All rights reserved • v0.71 • Built by Pilots for Pilots</p>
             <div className="flex flex-col items-center gap-2">
               <span className="text-neutral-500 italic">Help with server and API costs:</span>
               <a 

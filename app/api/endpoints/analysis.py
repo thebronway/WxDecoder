@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.core.weather import get_metar_taf, get_bulk_weather_data
 from app.core.notams import get_notams
 from app.core.ai import analyze_risk
-from app.core.geography import get_nearest_reporting_stations, check_airspace_zones, airports_icao, airports_lid, get_coords_from_awc
+from app.core.geography import get_nearest_reporting_stations, check_airspace_zones, airports_icao, airports_lid, get_coords_from_awc, calculate_distance
 from app.core.rate_limit import RateLimiter
 from app.core.logger import log_attempt
 from app.core.cache import get_cached_report, save_cached_report
@@ -24,6 +24,7 @@ class AnalysisRequest(BaseModel):
     icao: str
     plane_size: str
     force: bool = False
+    weather_override: str = None
 
 def parse_metar_time(metar_str):
     if not metar_str: return None
@@ -105,7 +106,7 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         # 1. CACHE CHECK (Skipped if force=True)
         cached_result = None
         if not request.force:
-            cached_result = await get_cached_report(input_icao, request.plane_size)
+            cached_result = await get_cached_report(input_icao, request.plane_size, request.weather_override)
 
         if cached_result:
             duration = time.time() - t_start
@@ -154,10 +155,13 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
                 airspace_warnings = check_airspace_zones(input_icao, lat, lon)
             except Exception: pass
 
+        # Determine Weather Source (Override or Default)
+        target_wx = request.weather_override if request.weather_override else input_icao
+
         # --- PARALLEL FETCH (TIMED) ---
         async def fetch_wx():
             t = time.time()
-            data = await get_metar_taf(input_icao)
+            data = await get_metar_taf(target_wx)
             return data, time.time() - t
 
         async def fetch_notams():
@@ -168,8 +172,29 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
         (weather_data, t_wx_fetch), (notams, t_notams) = await asyncio.gather(fetch_wx(), fetch_notams())
         
         if weather_data:
-            weather_icao = input_icao
-            weather_name = airport_name
+            weather_icao = target_wx
+            
+            # Handle Override Logic (Name & Distance)
+            if target_wx != input_icao:
+                src_data = airports_icao.get(target_wx) or airports_lid.get(target_wx)
+                weather_name = src_data['name'] if src_data else target_wx
+                
+                # Calculate Distance if both coords are known (Check local DB first, then remote data)
+                # This fixes the "0nm" issue for airports not in the local database (e.g. KANP)
+                target_lat, target_lon = None, None
+                
+                if airport_data:
+                    target_lat, target_lon = float(airport_data['lat']), float(airport_data['lon'])
+                elif 'remote_data' in locals() and remote_data:
+                    target_lat, target_lon = remote_data['lat'], remote_data['lon']
+
+                if src_data and target_lat is not None and target_lon is not None:
+                    try:
+                         lat2, lon2 = float(src_data['lat']), float(src_data['lon'])
+                         weather_dist = calculate_distance(target_lat, target_lon, lat2, lon2)
+                    except: pass
+            else:
+                weather_name = airport_name
         
         # Weather Fallback Logic
         if not weather_data:
@@ -286,7 +311,8 @@ async def analyze_flight(request: AnalysisRequest, raw_request: Request, backgro
                 should_cache = False
 
         if should_cache:
-            await save_cached_report(input_icao, request.plane_size, response_data, ttl_seconds=ttl)
+            cache_override = request.weather_override if request.weather_override else None
+            await save_cached_report(input_icao, request.plane_size, response_data, ttl_seconds=ttl, weather_source=cache_override)
             expiration_dt = now + datetime.timedelta(seconds=ttl)
         
         status = "SUCCESS"
