@@ -89,6 +89,7 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
     calc_rwy = "--"
     calc_xwind = "--"
     calc_status = "UNK"
+    wind_data = None
     
     # --- 2. PYTHON MATH ENGINE (Pre-Calculation) ---
     if has_weather:
@@ -168,10 +169,16 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
                 profile_name_map = {"small": "Small Aircraft", "medium": "Medium Aircraft", "large": "Large Aircraft"}
                 profile_display = profile_name_map.get(plane_size, "Selected")
 
-                xwind_analysis_text = (
-                    f"Winds from {w_dir:03d}° at {w_spd}kts{source_tag}{gust_text}, create a {raw_xwind}kt crosswind component "
-                    f"on Runway {r_id}{dest_tag}. This calculated crosswind component {status_desc} for the {profile_display} profile."
-                )
+                if w_spd == 0:
+                    xwind_analysis_text = (
+                        f"Winds are reported as calm{source_tag}. There is no crosswind component on Runway {r_id}{dest_tag}. "
+                        f"Conditions are within limits for the {profile_display} profile."
+                    )
+                else:
+                    xwind_analysis_text = (
+                        f"Winds from {w_dir:03d}° at {w_spd}kts{source_tag}{gust_text}, create a {raw_xwind}kt crosswind component "
+                        f"on Runway {r_id}{dest_tag}. This calculated crosswind component {status_desc} for the {profile_display} profile."
+                    )
             else:
                  # Should theoretically not hit this with best_score = -9999
                  xwind_analysis_text = "Crosswind calculations unavailable (Could not determine optimal runway)."
@@ -301,6 +308,10 @@ async def analyze_risk(icao_code, weather_data, notams, plane_size="small", repo
              # Force the Python Math into the bubble
              result["bubbles"]["x_wind"] = f"{calc_xwind}kts" if calc_xwind != "--" else "--"
              result["bubbles"]["rwy"] = calc_rwy
+
+             # Force Winds Calm if speed is 0
+             if wind_data and wind_data[1] == 0:
+                 result["bubbles"]["wind"] = "Winds Calm"
              
              # Still fix visibility formatting
              if "visibility" in result["bubbles"]:

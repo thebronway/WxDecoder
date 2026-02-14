@@ -17,7 +17,11 @@ const KioskManager = () => {
       subscriber_name: '', 
       default_profile: 'small',
       weather_override_icao: '',
-      title_override: ''
+      title_override: '',
+      show_raw_metar: true,
+      show_notams: true,
+      show_facility_message: false,
+      custom_message_html: ''
   });
 
   const fetchKiosks = async () => {
@@ -34,7 +38,8 @@ const KioskManager = () => {
   const handleCreate = () => {
       setForm({ 
           slug: '', target_icao: '', subscriber_name: '', default_profile: 'small',
-          weather_override_icao: '', title_override: ''
+          weather_override_icao: '', title_override: '',
+          show_raw_metar: true, show_notams: true, show_facility_message: false, custom_message_html: ''
       });
       setIsEditing(false);
       setShowModal(true);
@@ -42,13 +47,23 @@ const KioskManager = () => {
 
   // Open Modal for Edit
   const handleEdit = (kiosk) => {
+      // Parse Config JSON safely
+      let conf = {};
+      try {
+          if (kiosk.config_options) conf = JSON.parse(kiosk.config_options);
+      } catch (e) { console.error("JSON Parse Error", e); }
+
       setForm({
           slug: kiosk.slug,
           target_icao: kiosk.target_icao,
           subscriber_name: kiosk.subscriber_name,
           default_profile: kiosk.default_profile,
           weather_override_icao: kiosk.weather_override_icao || '',
-          title_override: kiosk.title_override || ''
+          title_override: kiosk.title_override || '',
+          show_raw_metar: conf.show_raw_metar ?? true,
+          show_notams: conf.show_notams ?? true,
+          show_facility_message: conf.show_facility_message ?? false,
+          custom_message_html: conf.custom_message_html || ''
       });
       setIsEditing(true);
       setShowModal(true);
@@ -212,6 +227,38 @@ const KioskManager = () => {
                                     onChange={e => setForm({...form, title_override: e.target.value})} 
                                 />
                             </div>
+                        </div>
+
+                        {/* CONFIGURATION & FACILITY MESSAGE */}
+                        <div className="border-t border-neutral-800 pt-5 mt-2">
+                            <h4 className="text-white text-xs font-bold uppercase mb-4">Display Configuration</h4>
+                            
+                            <div className="flex gap-4 mb-4">
+                                <label className="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded cursor-pointer border border-neutral-700 select-none">
+                                    <input type="checkbox" checked={form.show_facility_message} onChange={e => setForm({...form, show_facility_message: e.target.checked})} />
+                                    <span className="text-xs font-bold text-white">Facility Msg</span>
+                                </label>
+                                <label className="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded cursor-pointer border border-neutral-700 select-none">
+                                    <input type="checkbox" checked={form.show_raw_metar} onChange={e => setForm({...form, show_raw_metar: e.target.checked})} />
+                                    <span className="text-xs font-bold text-white">Raw Metar</span>
+                                </label>
+                                <label className="flex items-center gap-2 bg-neutral-800 px-3 py-2 rounded cursor-pointer border border-neutral-700 select-none">
+                                    <input type="checkbox" checked={form.show_notams} onChange={e => setForm({...form, show_notams: e.target.checked})} />
+                                    <span className="text-xs font-bold text-white">NOTAMs</span>
+                                </label>
+                            </div>
+
+                            {form.show_facility_message && (
+                                <div>
+                                    <label className="block text-xs font-bold text-neutral-500 mb-1 uppercase">Facility Message (HTML Supported)</label>
+                                    <textarea 
+                                        className="w-full bg-black border border-neutral-700 rounded p-3 text-white focus:border-blue-500 outline-none font-mono text-xs h-32" 
+                                        placeholder="<p>Welcome to <b>Bob's Flight School</b></p>"
+                                        value={form.custom_message_html} 
+                                        onChange={e => setForm({...form, custom_message_html: e.target.value})} 
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Actions */}

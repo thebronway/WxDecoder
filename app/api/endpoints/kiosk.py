@@ -61,6 +61,10 @@ class KioskProfileRequest(BaseModel):
     title_override: Optional[str] = None
     default_profile: str = "small"
     subscriber_name: str
+    show_raw_metar: bool = True
+    show_notams: bool = True
+    show_facility_message: bool = False
+    custom_message_html: Optional[str] = ""
 
 @router.get("/list", dependencies=[Depends(get_admin_key)])
 async def list_kiosks():
@@ -72,15 +76,24 @@ async def list_kiosks():
 async def add_kiosk(data: KioskProfileRequest):
     slug_key = data.slug.lower().strip().replace(" ", "-")
     
+    # Pack the config options into JSON
+    config_blob = json.dumps({
+        "show_raw_metar": data.show_raw_metar,
+        "show_notams": data.show_notams,
+        "show_facility_message": data.show_facility_message,
+        "custom_message_html": data.custom_message_html
+    })
+
     query = """
-        INSERT INTO kiosk_profiles (slug, target_icao, weather_override_icao, title_override, default_profile, subscriber_name, is_active)
-        VALUES (:slug, :target, :wx_src, :title, :def, :sub, 1)
+        INSERT INTO kiosk_profiles (slug, target_icao, weather_override_icao, title_override, default_profile, subscriber_name, is_active, config_options)
+        VALUES (:slug, :target, :wx_src, :title, :def, :sub, 1, :conf)
         ON CONFLICT (slug) DO UPDATE SET
         target_icao = :target,
         weather_override_icao = :wx_src,
         title_override = :title,
         default_profile = :def,
         subscriber_name = :sub,
+        config_options = :conf,
         is_active = 1
     """
     values = {
@@ -89,7 +102,8 @@ async def add_kiosk(data: KioskProfileRequest):
         "wx_src": data.weather_override_icao.upper() if data.weather_override_icao else None,
         "title": data.title_override,
         "def": data.default_profile,
-        "sub": data.subscriber_name
+        "sub": data.subscriber_name,
+        "conf": config_blob
     }
     await database.execute(query, values)
     return {"status": "success"}

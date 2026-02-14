@@ -62,8 +62,8 @@ const KioskLanding = () => {
 
       {/* DEMO GIF */}
       <div className="max-w-4xl mx-auto mb-24 rounded-xl overflow-hidden border border-neutral-800 shadow-2xl shadow-blue-900/20">
-         <img src="/kiosk/KANP.gif" alt="Kiosk Mode Animation" className="w-full h-auto object-cover" />
-      </div>
+        <video src="/kiosk/KANP.mp4" alt="Kiosk Mode Animation" className="w-full h-auto object-cover" muted autoPlay loop playsInline />
+        </div>
 
       {/* SCREENSHOTS / LIVE PREVIEWS */}
       <div className="mb-24">
@@ -75,49 +75,49 @@ const KioskLanding = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
               
-              {/* CARD 1: KANP */}
+              {/* CARD 1 */}
               <div className="bg-neutral-900/30 border border-neutral-800 rounded-2xl p-6 flex flex-col gap-6 hover:border-blue-500/30 transition-colors group">
                   {/* Header */}
                   <div className="flex items-center gap-3">
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
                       <div>
-                          <h3 className="text-2xl font-black text-white leading-none">KANP</h3>
-                          <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-1">Lee Airport</p>
+                          <h3 className="text-2xl font-black text-white leading-none">Demo Flight School</h3>
+                          <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-1">[KANP] Lee Airport</p>
                       </div>
                   </div>
 
                   {/* Image Preview */}
-                  <a href="/kiosk/KANP.webp" target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl cursor-zoom-in">
+                  <a href="/kiosk/DEMO_KANP.webp" target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl cursor-zoom-in">
                       <img src="/kiosk/KANP.webp" alt="KANP Preview" className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-xs font-bold text-white uppercase tracking-wider bg-black/50 px-3 py-1 rounded border border-white/20">View 4K Screenshot</span>
+                          <span className="text-xs font-bold text-white uppercase tracking-wider bg-black/50 px-3 py-1 rounded border border-white/20">View 1080p Screenshot</span>
                       </div>
                   </a>
 
                   {/* Action Button */}
                   <Link 
-                      to="/kiosk/KANP/small" 
+                      to="/kiosk/demo_kanp" 
                       target="_blank"
                       className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all uppercase tracking-wider text-sm shadow-lg shadow-blue-900/20"
                   >
-                      <ExternalLink size={16} /> Launch Live Demo
+                      <ExternalLink size={16} /> View Live Demo
                   </Link>
               </div>
 
-              {/* CARD 2: KBOS */}
+              {/* CARD 2 */}
               <div className="bg-neutral-900/30 border border-neutral-800 rounded-2xl p-6 flex flex-col gap-6 hover:border-blue-500/30 transition-colors group">
                   {/* Header */}
                   <div className="flex items-center gap-3">
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
                       <div>
-                          <h3 className="text-2xl font-black text-white leading-none">KBOS</h3>
-                          <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-1">Logan Intl</p>
+                          <h3 className="text-2xl font-black text-white leading-none">Demo Signature FBO</h3>
+                          <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mt-1">[KTEB] Teterboro Airport</p>
                       </div>
                   </div>
 
                   {/* Image Preview */}
-                  <a href="/kiosk/KBOS.webp" target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl cursor-zoom-in">
-                      <img src="/kiosk/KBOS.webp" alt="KBOS Preview" className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                  <a href="/kiosk/demo_kteb" target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl cursor-zoom-in">
+                      <img src="/kiosk/KTEB.webp" alt="KBOS Preview" className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="text-xs font-bold text-white uppercase tracking-wider bg-black/50 px-3 py-1 rounded border border-white/20">View 4K Screenshot</span>
                       </div>
@@ -125,11 +125,11 @@ const KioskLanding = () => {
 
                   {/* Action Button */}
                   <Link 
-                      to="/kiosk/KBOS/small" 
+                      to="/kiosk/demo_kteb" 
                       target="_blank"
                       className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all uppercase tracking-wider text-sm shadow-lg shadow-blue-900/20"
                   >
-                      <ExternalLink size={16} /> Launch Live Demo
+                      <ExternalLink size={16} /> View Live Demo
                   </Link>
               </div>
 

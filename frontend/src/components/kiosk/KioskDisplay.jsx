@@ -5,15 +5,15 @@ import Bubble from '../Bubble';
 import { AlertTriangle, Clock, Plane, Info } from 'lucide-react';
 
 const NOTAMScroller = ({ notams }) => {
-    if (!notams || notams.length === 0) return <div className="p-4 text-gray-500">No NOTAMs.</div>;
+    if (!notams || notams.length === 0) return <div className="p-4 text-gray-500 h-full bg-black/40 rounded-lg">No NOTAMs.</div>;
 
     return (
         <div className="relative h-full overflow-hidden bg-black/40 rounded-lg">
-            <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-b from-neutral-900/90 via-transparent to-neutral-900/90 h-full"></div>
-            <div className="animate-marquee py-4 space-y-6">
+            <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-b from-neutral-900/20 via-transparent to-neutral-900/20 h-full"></div>
+            <div className="animate-marquee py-4 space-y-6 min-h-full">
                 {[...notams, ...notams].map((n, i) => (
                     <div key={i} className="px-6">
-                        <p className="text-green-400 font-mono text-xl leading-relaxed uppercase whitespace-pre-wrap border-l-4 border-green-700 pl-4">
+                        <p className="text-green-400 font-mono text-sm leading-relaxed uppercase whitespace-pre-wrap border-l-4 border-green-700 pl-4">
                             {n}
                         </p>
                     </div>
@@ -192,6 +192,12 @@ const TimelineCard = ({ title, summary }) => (
     </div>
 );
 
+const FacilityMessage = ({ htmlContent, expanded }) => (
+    <div className={`bg-neutral-800/80 border border-neutral-700 rounded-xl p-5 shrink-0 shadow-lg flex flex-col overflow-hidden relative ${expanded ? 'flex-1' : 'min-h-[10rem] h-auto'}`}>
+        <div className="prose prose-invert prose-sm max-w-none leading-snug h-full w-full" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+    </div>
+);
+
 // Helper for METAR Time Parsing
 const getMetarTime = (metarString, timezone) => {
   if (!metarString) return null;
@@ -312,7 +318,7 @@ const KioskDisplay = () => {
             setData(res);
             setLastMetarRaw(res.raw_data?.metar);
             setWeatherSource(res.raw_data?.weather_source);
-            document.title = `${conf.target_icao} | WxDecoder`;
+            document.title = `${conf.subscriber_name} | WxDecoder`;
         } catch (e) {
             console.error("Analysis load failed", e);
         } finally {
@@ -420,11 +426,10 @@ const KioskDisplay = () => {
             <div className="grid grid-cols-12 gap-8 h-full min-h-0">
                 
                 {/* LEFT COL: AI Briefing & Bubbles (8 Cols) */}
-                {/* Changed to flex flex-col gap-6 to match constant spacing */}
-                <div className="col-span-8 flex flex-col gap-6 h-full min-h-0">
+                <div className="col-span-8 flex flex-col gap-4 h-full min-h-0">
                     
                     {/* 1. Current Conditions Bubbles (Standard Labels) - Auto Height, Flex-None */}
-                    <div className="grid grid-cols-4 gap-4 flex-none mb-6 h-40">
+                    <div className="grid grid-cols-4 gap-4 flex-none h-40">
                         <Bubble label="CATEGORY" value={analysis.flight_category} highlight={true} />
                         {/* Split Wind Bubble */}
                         <Bubble 
@@ -495,35 +500,44 @@ const KioskDisplay = () => {
                     </div>
                 </div>
 
-                {/* RIGHT COL: Raw Data (4 Cols) */}
-                <div className="col-span-4 flex flex-col gap-6 h-full min-h-0">
+                <div className="col-span-4 flex flex-col gap-4 h-full min-h-0">
                     
-                    {/* METAR / TAF */}
-                    <div className="bg-black border border-neutral-800 rounded-xl p-5 shrink-0 shadow-lg flex-none">
-                        <h3 className="text-gray-500 font-bold text-xs uppercase mb-2">Raw METAR</h3>
-                        <p className="font-mono text-green-400 text-lg leading-tight break-words">
-                            {raw_data.metar}
-                        </p>
-                        
-                        <div className="my-4 border-t border-neutral-900"></div>
-                        
-                        <h3 className="text-gray-500 font-bold text-xs uppercase mb-2">Terminal Forecast</h3>
-                         <p className="font-mono text-blue-400 text-lg leading-tight whitespace-pre-wrap">
-                            {raw_data.taf ? raw_data.taf.replace(/(FM|BECMG|TEMPO)/g, '\n$1') : "No TAF Available"}
-                        </p>
-                    </div>
+                    {config?.config?.show_facility_message && (
+                        <FacilityMessage 
+                            htmlContent={config?.config?.custom_message_html} 
+                            expanded={!config?.config?.show_raw_metar && !config?.config?.show_notams}
+                        />
+                    )}
 
-                    {/* NOTAM SCROLLER - Takes remaining height */}
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden relative shadow-inner">
-                        <div className="bg-neutral-800 p-3 z-20 shadow-md shrink-0">
-                            <h3 className="text-orange-500 font-bold uppercase tracking-widest text-center">Active NOTAMs</h3>
+                    {config?.config?.show_raw_metar !== false && (
+                        <div className="bg-black border border-neutral-800 rounded-xl p-5 shrink-0 shadow-lg flex-none">
+                            <h3 className="text-gray-500 font-bold text-xs uppercase mb-2">Raw METAR</h3>
+                            <p className="font-mono text-green-400 text-lg leading-tight break-words">
+                                {raw_data.metar}
+                            </p>
+                            
+                            <div className="my-4 border-t border-neutral-900"></div>
+                            
+                            <h3 className="text-gray-500 font-bold text-xs uppercase mb-2">Terminal Forecast</h3>
+                            <p className="font-mono text-blue-400 text-lg leading-tight whitespace-pre-wrap">
+                                {raw_data.taf ? raw_data.taf.replace(/(FM|BECMG|TEMPO)/g, '\n$1') : "No TAF Available"}
+                            </p>
                         </div>
-                        <NOTAMScroller notams={raw_data.notams} />
-                    </div>
+                    )}
 
-                    {/* DISCLAIMER BOX - Fixed at bottom right */}
+                    {config?.config?.show_notams !== false && (
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden relative shadow-inner">
+                            <div className="bg-neutral-800 p-3 z-20 shadow-md shrink-0">
+                                <h3 className="text-orange-500 font-bold uppercase tracking-widest text-center">Active NOTAMs</h3>
+                            </div>
+                            <div className="text-sm flex-1 min-h-0 relative"> 
+                                <NOTAMScroller notams={raw_data.notams} />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3 shrink-0">
-                        <p className="text-sm text-gray-300 font-medium flex items-center justify-center gap-1 text-center">
+                        <p className="text-xs text-gray-300 font-medium flex items-center justify-center gap-1 text-center">
                             <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                             <span className="font-bold text-red-500">DISCLAIMER:</span> 
                             <span>AI normalizes data and can make errors. Always verify with official sources.</span>
